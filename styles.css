@@ -501,6 +501,12 @@ td.amount { text-align: right; font-weight: 900; white-space: nowrap; }
 }
 .main-action-row {
   align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.main-action-row .status-text {
+  flex: 1 1 320px;
+  min-width: 220px;
 }
 .large-action {
   min-height: 52px;
@@ -757,7 +763,14 @@ td.amount { text-align: right; font-weight: 900; white-space: nowrap; }
   .workflow-steps {
     grid-template-columns: 1fr;
   }
+  .main-action-row {
+    align-items: stretch;
+  }
+  .main-action-row .status-text {
+    order: 2;
+  }
   .main-cta-button {
+    order: 1;
     width: 100%;
   }
 }

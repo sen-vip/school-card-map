@@ -8,6 +8,9 @@
   "functions": {
     "api/sen_fetch.py": {
       "maxDuration": 60
+    },
+    "api/school_info.py": {
+      "maxDuration": 15
     }
   }
 }

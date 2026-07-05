@@ -377,6 +377,10 @@ class CardMapHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/school_info":
+            self.handle_school_info(parsed)
+            return
         super().do_GET()
 
     def do_POST(self) -> None:
@@ -404,12 +408,26 @@ class CardMapHandler(SimpleHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             self.write_json(502, {"ok": False, "error": str(exc), "type": exc.__class__.__name__})
 
+    def handle_school_info(self, parsed: urllib.parse.ParseResult) -> None:
+        try:
+            from api.school_info import lookup_school, clean_text as clean_school_text
+
+            query = urllib.parse.parse_qs(parsed.query)
+            school_name = clean_school_text(query.get("schoolName", [""])[0])
+            if not school_name:
+                self.write_json(400, {"ok": False, "error": "schoolName을 입력해 주세요."})
+                return
+            payload = lookup_school(school_name)
+            self.write_json(200 if payload.get("ok") else 404, payload)
+        except Exception as exc:  # noqa: BLE001
+            self.write_json(502, {"ok": False, "error": str(exc), "type": exc.__class__.__name__})
+
 
 
 if __name__ == "__main__":
     os.chdir(BASE_DIR)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), CardMapHandler)
-    print(f"학교카드 사용지도 v1.1.4 서울교육청 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
+    print(f"학교카드 사용지도 v1.2.0 서울교육청 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
     print("종료하려면 Ctrl+C")
     try:
         server.serve_forever()

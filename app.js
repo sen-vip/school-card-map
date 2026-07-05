@@ -10,21 +10,19 @@ const PLACE_EXCLUDE_KEYWORDS = [
 const SEN_DEFAULT_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do";
 const SEN_DETAIL_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010d.do";
 const AUTO_FETCH_ENDPOINT = "/sen-fetch";
+const SCHOOL_INFO_ENDPOINT = "/api/school_info";
 // 브라우저에서 사용하는 카카오 JavaScript 키입니다.
 // REST API 키/Admin 키가 아니며, 카카오 개발자센터의 JavaScript SDK 도메인 제한으로 보호합니다.
 const DEFAULT_KAKAO_JS_KEY = "9a75b8f0e12044be3f4588a0f3c728b5";
 const DEFAULT_REGION_HINT = "서울특별시";
-const SCHOOL_REGION_OVERRIDES = {
+// 학교명 글자만 보고 자치구를 추정하면 구암중→중구처럼 오판할 수 있습니다.
+// 지역은 학교 주소 조회 결과에서만 확정하고, 아래 값은 주소 조회 실패 시 예시 학교 보조용으로만 사용합니다.
+const SCHOOL_REGION_FALLBACKS = {
   "대청중": "서울특별시 강남구",
   "대청중학교": "서울특별시 강남구",
   "금천고": "서울특별시 금천구",
   "금천고등학교": "서울특별시 금천구",
 };
-const SEOUL_DISTRICTS = [
-  "강남구", "서초구", "송파구", "강동구", "강서구", "양천구", "구로구", "금천구",
-  "영등포구", "동작구", "관악구", "마포구", "서대문구", "은평구", "종로구", "중구",
-  "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구", "노원구"
-];
 
 const SAMPLE_TEXT = `번호	집행일자	집행장소	집행금액	집행목적	집행대상	집행시간	승인자
 13	2026-02-04	주식회사부산어묵직판	105,000	[카드]2025학년도 공연한마당 평가회비 지출	창의체험부교사 외	2026-02-04 16:00	관리자
@@ -56,6 +54,7 @@ const state = {
   kakaoLoaded: false,
   schoolRegionHint: "",
   schoolRegionSource: "default",
+  schoolRegionSchool: "",
   workflowRunning: false,
   schoolCheckTimer: null,
 };
@@ -201,8 +200,9 @@ function updateRegionStatus() {
 
 function getRegionSourceText() {
   if (elements.areaHint?.value?.trim()) return "직접 입력";
-  if (state.schoolRegionSource === "kakao") return "학교 위치 확인";
-  if (state.schoolRegionSource === "rule") return "학교명 추정";
+  if (state.schoolRegionSource === "neis") return "학교 주소 확인";
+  if (state.schoolRegionSource === "kakao") return "지도 장소 확인";
+  if (state.schoolRegionSource === "fallback") return "보조값";
   return "기본값";
 }
 
@@ -220,13 +220,17 @@ function updateSchoolStatus(message, tone = "neutral") {
 function handleSchoolNameInput() {
   state.schoolRegionHint = "";
   state.schoolRegionSource = "default";
+  state.schoolRegionSchool = "";
   if (elements.areaHint && !document.querySelector(".settings-details")?.open) {
     elements.areaHint.value = "";
   }
   updateMapSettingStatus();
-  updateSchoolStatus();
+  const schoolName = elements.schoolName?.value?.trim() || "";
+  updateSchoolStatus(schoolName ? "학교 주소 확인 대기 중 · Enter 또는 사용처 지도 만들기를 누르세요." : undefined, "neutral");
   clearTimeout(state.schoolCheckTimer);
-  state.schoolCheckTimer = setTimeout(() => resolveSchoolRegionHint({ force: false }), 600);
+  if (schoolName.length >= 2) {
+    state.schoolCheckTimer = setTimeout(() => resolveSchoolRegionHint({ force: true }), 700);
+  }
 }
 
 function updateNextAction(mode = state.mode) {
@@ -1180,28 +1184,20 @@ function uniqueValues(values) {
 function getEffectiveAreaHint() {
   const userHint = normalizeAreaHint(elements.areaHint?.value?.trim() || "");
   if (userHint) return userHint;
-  return state.schoolRegionHint || getSchoolRegionHint(elements.schoolName?.value?.trim() || "") || DEFAULT_REGION_HINT;
+  return state.schoolRegionHint || DEFAULT_REGION_HINT;
 }
 
-function getSchoolRegionHint(schoolName) {
-  const name = String(schoolName || "").replace(/\s+/g, "");
-  if (!name) return "";
+function normalizeSchoolNameKey(value) {
+  return String(value || "")
+    .replace(/학교$/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
 
-  for (const [schoolKey, region] of Object.entries(SCHOOL_REGION_OVERRIDES)) {
-    if (name === schoolKey || name.includes(schoolKey)) {
-      state.schoolRegionSource = "rule";
-      return region;
-    }
-  }
-
-  for (const district of SEOUL_DISTRICTS) {
-    const shortName = district.replace(/구$/, "");
-    if (name.includes(shortName)) {
-      state.schoolRegionSource = "rule";
-      return `서울특별시 ${district}`;
-    }
-  }
-  return "";
+function getSchoolRegionFallback(schoolName) {
+  const compact = String(schoolName || "").replace(/\s+/g, "");
+  if (!compact) return "";
+  return SCHOOL_REGION_FALLBACKS[compact] || SCHOOL_REGION_FALLBACKS[`${compact}학교`] || "";
 }
 
 async function resolveSchoolRegionHint({ force = false } = {}) {
@@ -1209,6 +1205,7 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
   if (userHint) {
     state.schoolRegionHint = userHint;
     state.schoolRegionSource = "manual";
+    state.schoolRegionSchool = elements.schoolName?.value?.trim() || "";
     updateMapSettingStatus();
     updateSchoolStatus(`${userHint} 기준으로 검색합니다.`, "ready");
     return userHint;
@@ -1218,66 +1215,127 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
   if (!schoolName) {
     state.schoolRegionHint = "";
     state.schoolRegionSource = "default";
+    state.schoolRegionSchool = "";
     updateMapSettingStatus();
     updateSchoolStatus();
     return DEFAULT_REGION_HINT;
   }
 
-  const ruleHint = getSchoolRegionHint(schoolName);
-  if (ruleHint) {
-    state.schoolRegionHint = ruleHint;
-    state.schoolRegionSource = "rule";
-    updateMapSettingStatus();
-    updateSchoolStatus(`${ruleHint} 학교로 추정했습니다.`, "ready");
-    return ruleHint;
+  const schoolKey = normalizeSchoolNameKey(schoolName);
+  if (!force && state.schoolRegionHint && normalizeSchoolNameKey(state.schoolRegionSchool) === schoolKey) {
+    return state.schoolRegionHint;
+  }
+  if (!force) {
+    updateSchoolStatus("학교 주소 확인 전 · 사용처 지도 만들기를 누르면 주소에서 자치구를 확인합니다.", "neutral");
+    return state.schoolRegionHint || DEFAULT_REGION_HINT;
   }
 
-  if (!force) {
-    state.schoolRegionHint = "";
-    state.schoolRegionSource = "default";
-    updateMapSettingStatus();
-    updateSchoolStatus(`${DEFAULT_REGION_HINT} 기준으로 우선 검색합니다.`, "neutral");
-    return DEFAULT_REGION_HINT;
+  const requestKey = schoolKey;
+  try {
+    updateSchoolStatus(`${schoolName} 학교 주소 확인 중...`, "loading");
+    const schoolInfo = await findSchoolRegionWithSchoolInfoApi(schoolName);
+    if (normalizeSchoolNameKey(elements.schoolName?.value?.trim() || "") !== requestKey) {
+      return state.schoolRegionHint || DEFAULT_REGION_HINT;
+    }
+    if (schoolInfo?.regionHint) {
+      state.schoolRegionHint = schoolInfo.regionHint;
+      state.schoolRegionSource = "neis";
+      state.schoolRegionSchool = schoolInfo.schoolName || schoolName;
+      updateMapSettingStatus();
+      const addressText = schoolInfo.address ? ` · ${schoolInfo.address}` : "";
+      updateSchoolStatus(`${schoolInfo.schoolName || schoolName} · ${schoolInfo.regionHint} 주소 확인 완료${addressText}`, "ready");
+      return schoolInfo.regionHint;
+    }
+  } catch (error) {
+    console.warn("학교 주소 API 확인 실패", error);
   }
 
   try {
-    updateSchoolStatus(`${schoolName} 학교 위치 확인 중...`, "loading");
+    updateSchoolStatus(`${schoolName} 학교 위치를 지도에서 보조 확인 중...`, "loading");
     const key = getEffectiveKakaoKey();
     if (!key) throw new Error("지도 키가 없습니다.");
     await loadKakaoMap(key);
     const kakaoHint = await findSchoolRegionWithKakao(schoolName);
+    if (normalizeSchoolNameKey(elements.schoolName?.value?.trim() || "") !== requestKey) {
+      return state.schoolRegionHint || DEFAULT_REGION_HINT;
+    }
     if (kakaoHint) {
       state.schoolRegionHint = kakaoHint;
       state.schoolRegionSource = "kakao";
+      state.schoolRegionSchool = schoolName;
       updateMapSettingStatus();
-      updateSchoolStatus(`${kakaoHint} 학교로 확인했습니다.`, "ready");
+      updateSchoolStatus(`${kakaoHint} 학교 위치로 보조 확인했습니다.`, "ready");
       return kakaoHint;
     }
   } catch (error) {
-    console.warn("학교 지역 자동 확인 실패", error);
+    console.warn("카카오 학교 위치 보조 확인 실패", error);
+  }
+
+  const fallbackHint = getSchoolRegionFallback(schoolName);
+  if (fallbackHint) {
+    state.schoolRegionHint = fallbackHint;
+    state.schoolRegionSource = "fallback";
+    state.schoolRegionSchool = schoolName;
+    updateMapSettingStatus();
+    updateSchoolStatus(`${fallbackHint} 보조값으로 검색합니다. 학교 주소 확인 결과가 아니므로 필요 시 고급 설정에서 수정하세요.`, "neutral");
+    return fallbackHint;
   }
 
   state.schoolRegionHint = DEFAULT_REGION_HINT;
   state.schoolRegionSource = "default";
+  state.schoolRegionSchool = schoolName;
   updateMapSettingStatus();
-  updateSchoolStatus(`학교 주소 확인은 실패했습니다. ${DEFAULT_REGION_HINT} 기준으로 검색합니다.`, "neutral");
+  updateSchoolStatus(`학교 주소를 확인하지 못했습니다. ${DEFAULT_REGION_HINT} 기준으로 넓게 검색합니다. 필요하면 지도 고급 설정에서 지역 보조어를 입력하세요.`, "neutral");
   return DEFAULT_REGION_HINT;
+}
+
+async function findSchoolRegionWithSchoolInfoApi(schoolName) {
+  const params = new URLSearchParams({ schoolName });
+  const response = await fetch(`${SCHOOL_INFO_ENDPOINT}?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) return null;
+  const data = await response.json().catch(() => null);
+  if (!data?.ok || !data.regionHint) return null;
+  return data;
+}
+
+function makeSchoolSearchCandidates(schoolName) {
+  const compact = String(schoolName || "").replace(/\s+/g, "").trim();
+  const candidates = [compact];
+  if (/중$/.test(compact)) candidates.push(`${compact}학교`);
+  if (/고$/.test(compact)) candidates.push(`${compact}등학교`, `${compact}학교`);
+  if (/초$/.test(compact)) candidates.push(`${compact}등학교`, `${compact}학교`);
+  if (!/학교$/.test(compact)) candidates.push(`${compact}학교`);
+  return uniqueValues(candidates);
 }
 
 async function findSchoolRegionWithKakao(schoolName) {
   if (!window.kakao?.maps?.services) return "";
   const places = new kakao.maps.services.Places();
-  const queries = uniqueValues([`서울특별시 ${schoolName}`, `${schoolName} 학교`, schoolName]);
+  const candidates = makeSchoolSearchCandidates(schoolName);
+  const queries = uniqueValues(candidates.flatMap((name) => [`서울특별시 ${name}`, `${name} 서울`, name]));
   for (const query of queries) {
     const docs = await keywordSearch(places, query);
-    const region = extractSeoulRegionFromPlaces(docs);
+    const region = extractSeoulRegionFromSchoolPlaces(docs, candidates);
     if (region) return region;
   }
   return "";
 }
 
-function extractSeoulRegionFromPlaces(docs) {
-  for (const item of docs || []) {
+function normalizeKoreanPlaceName(value) {
+  return String(value || "").replace(/[\s()\[\]{}·.,-]/g, "").trim();
+}
+
+function extractSeoulRegionFromSchoolPlaces(docs, schoolCandidates = []) {
+  const normalizedCandidates = schoolCandidates.map(normalizeKoreanPlaceName).filter(Boolean);
+  const schoolDocs = (docs || []).filter((item) => {
+    const placeName = normalizeKoreanPlaceName(item.place_name || "");
+    const category = `${item.category_group_name || ""} ${item.category_name || ""}`;
+    const looksLikeSchool = /학교|교육|학문/.test(category) || /학교$/.test(placeName);
+    const nameMatches = normalizedCandidates.some((candidate) => placeName.includes(candidate) || candidate.includes(placeName));
+    return looksLikeSchool && nameMatches;
+  });
+
+  for (const item of schoolDocs) {
     const address = `${item.road_address_name || ""} ${item.address_name || ""}`;
     if (!address.includes("서울")) continue;
     const match = address.match(/서울(?:특별시)?\s*([가-힣]+구)/);
