@@ -658,3 +658,21 @@ td.amount { text-align: right; font-weight: 900; white-space: nowrap; }
     justify-content: center;
   }
 }
+
+/* v1.1.8 map setup UX */
+.settings-details summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-details label span em {
+  margin-left: 4px;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+}
+.settings-details:not([open]) {
+  background: #fbfdff;
+}

@@ -10,6 +10,10 @@ const PLACE_EXCLUDE_KEYWORDS = [
 const SEN_DEFAULT_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do";
 const SEN_DETAIL_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010d.do";
 const AUTO_FETCH_ENDPOINT = "/sen-fetch";
+// 브라우저에서 사용하는 카카오 JavaScript 키입니다.
+// REST API 키/Admin 키가 아니며, 카카오 개발자센터의 JavaScript SDK 도메인 제한으로 보호합니다.
+const DEFAULT_KAKAO_JS_KEY = "9a75b8f0e12044be3f4588a0f3c728b5";
+const DEFAULT_REGION_HINT = "서울특별시";
 
 const SAMPLE_TEXT = `번호	집행일자	집행장소	집행금액	집행목적	집행대상	집행시간	승인자
 13	2026-02-04	주식회사부산어묵직판	105,000	[카드]2025학년도 공연한마당 평가회비 지출	창의체험부교사 외	2026-02-04 16:00	관리자
@@ -69,6 +73,7 @@ const elements = {
   autoDebugBox: $("#autoDebugBox"),
   autoDebugText: $("#autoDebugText"),
   keyStatus: $("#keyStatus"),
+  regionStatus: $("#regionStatus"),
   nextActionPanel: $("#nextActionPanel"),
   nextActionBadge: $("#nextActionBadge"),
   nextActionTitle: $("#nextActionTitle"),
@@ -79,6 +84,8 @@ const elements = {
 init();
 
 function init() {
+  // 기본 카카오 JavaScript 키가 내장되어 있으므로 일반 사용자는 키를 입력하지 않아도 됩니다.
+  // 사용자가 직접 저장한 키가 있으면 고급 설정에서 override 용도로만 표시합니다.
   elements.kakaoKey.value = localStorage.getItem("schoolCardMapKakaoKey") || "";
   elements.schoolName.value = localStorage.getItem("schoolCardMapSchoolName") || "";
   elements.areaHint.value = localStorage.getItem("schoolCardMapAreaHint") || "";
@@ -87,7 +94,7 @@ function init() {
   // v1.1.4: 이전 버전에서 저장된 /sen-proxy?url= 값이 자동 불러오기를 막지 않도록 강제로 /sen-fetch를 사용합니다.
   localStorage.removeItem("schoolCardMapSenProxyUrl");
   if (elements.senProxyUrl) elements.senProxyUrl.value = AUTO_FETCH_ENDPOINT;
-  updateKeyStatus();
+  updateMapSettingStatus();
 
   $("#purposeRules").textContent = PURPOSE_EXCLUDE_KEYWORDS.join(", ");
   $("#placeRules").textContent = PLACE_EXCLUDE_KEYWORDS.join(", ");
@@ -107,6 +114,8 @@ function init() {
     input.addEventListener("change", saveSettings);
   });
   elements.kakaoKey?.addEventListener("input", updateKeyStatus);
+  elements.schoolName?.addEventListener("input", updateMapSettingStatus);
+  elements.areaHint?.addEventListener("input", updateMapSettingStatus);
 
   elements.resultTabs.addEventListener("click", (event) => {
     const button = event.target.closest(".tab");
@@ -125,20 +134,41 @@ function getCurrentMonth() {
 }
 
 function saveSettings() {
-  localStorage.setItem("schoolCardMapKakaoKey", elements.kakaoKey.value.trim());
+  const userKakaoKey = elements.kakaoKey.value.trim();
+  if (userKakaoKey) localStorage.setItem("schoolCardMapKakaoKey", userKakaoKey);
+  else localStorage.removeItem("schoolCardMapKakaoKey");
   localStorage.setItem("schoolCardMapSchoolName", elements.schoolName.value.trim());
   localStorage.setItem("schoolCardMapAreaHint", elements.areaHint.value.trim());
   localStorage.setItem("schoolCardMapBaseMonth", elements.baseMonth.value.trim());
   if (elements.senSourceUrl) localStorage.setItem("schoolCardMapSenSourceUrl", elements.senSourceUrl.value.trim());
   // 자동수집 API는 /sen-fetch로 고정합니다. 사용자가 수정하거나 이전 값이 저장되지 않게 합니다.
+  updateMapSettingStatus();
+}
+
+function getEffectiveKakaoKey() {
+  return elements.kakaoKey?.value?.trim() || DEFAULT_KAKAO_JS_KEY;
+}
+
+function updateMapSettingStatus() {
   updateKeyStatus();
+  updateRegionStatus();
 }
 
 function updateKeyStatus() {
   if (!elements.keyStatus) return;
-  const hasKey = Boolean(elements.kakaoKey?.value?.trim());
-  elements.keyStatus.textContent = hasKey ? "지도 API 키 설정 완료" : "지도 API 키 미설정";
+  const hasKey = Boolean(getEffectiveKakaoKey());
+  const usingUserKey = Boolean(elements.kakaoKey?.value?.trim());
+  elements.keyStatus.textContent = hasKey
+    ? usingUserKey ? "지도 API 사용자 키 적용" : "지도 API 설정 완료"
+    : "지도 API 키 미설정";
   elements.keyStatus.classList.toggle("ready", hasKey);
+}
+
+function updateRegionStatus() {
+  if (!elements.regionStatus) return;
+  const region = getEffectiveAreaHint();
+  elements.regionStatus.textContent = `검색 지역: ${region}`;
+  elements.regionStatus.classList.toggle("ready", Boolean(region));
 }
 
 function updateNextAction(mode = state.mode) {
@@ -185,7 +215,7 @@ function formatDisplayMonth(value) {
 
 function insertSample() {
   elements.schoolName.value = elements.schoolName.value || "대청중학교";
-  elements.areaHint.value = elements.areaHint.value || "서울 강남구 대치동";
+  // 지역 보조어는 학교명으로 자동 추정됩니다. 사용자가 직접 입력한 값은 그대로 둡니다.
   elements.baseMonth.value = "2026-02";
   elements.rawInput.value = SAMPLE_TEXT;
   saveSettings();
@@ -240,7 +270,7 @@ async function run({ withMap }) {
     return;
   }
 
-  const key = elements.kakaoKey.value.trim();
+  const key = getEffectiveKakaoKey();
   if (!key) {
     state.mode = "parsed";
     state.currentTab = "target";
@@ -249,7 +279,7 @@ async function run({ withMap }) {
     renderTable();
     setMapNotice(true);
     updateNextAction("parsed");
-    setStatus("카카오 JavaScript 키가 없어 지도는 표시하지 않았습니다. 자료 확인은 완료되었습니다.", true);
+    setStatus("지도 키 문제로 지도를 표시하지 못했습니다. 고급 설정에서 카카오 JavaScript 키를 확인해 주세요.", true);
     return;
   }
 
@@ -953,13 +983,14 @@ async function searchPlacesAndRenderMarkers() {
       group.lat = Number(result.y);
       group.lng = Number(result.x);
       group.address = result.road_address_name || result.address_name || "";
+      group.searchQuery = result.searchQuery || "";
       group.candidateCount = result.candidateCount || 1;
       group.status = "mapped";
       createMarker(group);
     } else {
       group.status = "pending";
       for (const row of group.rows) {
-        state.pendingRows.push({ ...row, locationStatus: "장소 검색 실패" });
+        state.pendingRows.push({ ...row, locationStatus: `장소 검색 실패 · ${getEffectiveAreaHint()} 기준` });
       }
     }
   }
@@ -969,19 +1000,95 @@ async function searchPlacesAndRenderMarkers() {
 
 function searchPlaceForGroup(places, group) {
   const schoolName = elements.schoolName.value.trim();
-  const areaHint = elements.areaHint.value.trim();
+  const areaHint = getEffectiveAreaHint();
+  const broadHint = getBroadAreaHint(areaHint);
   const placeQueries = makePlaceSearchNames(group.place);
-  const prefixes = [areaHint, schoolName, ""].filter((item, index, array) => array.indexOf(item) === index);
+  const prefixes = uniqueValues([areaHint, broadHint, schoolName, ""]);
   const queries = [];
 
   for (const place of placeQueries) {
     for (const prefix of prefixes) {
-      const query = [prefix, place].filter(Boolean).join(" ").trim();
+      const query = normalizeSearchQuery([prefix, place].filter(Boolean).join(" "));
       if (query && !queries.includes(query)) queries.push(query);
     }
   }
 
-  return tryQueries(places, queries);
+  return tryQueries(places, queries, areaHint);
+}
+
+function uniqueValues(values) {
+  return values
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index);
+}
+
+function getEffectiveAreaHint() {
+  const userHint = normalizeAreaHint(elements.areaHint?.value?.trim() || "");
+  if (userHint) return userHint;
+  return getSchoolRegionHint(elements.schoolName?.value?.trim() || "") || DEFAULT_REGION_HINT;
+}
+
+function getSchoolRegionHint(schoolName) {
+  const name = String(schoolName || "").replace(/\s+/g, "");
+  if (!name) return DEFAULT_REGION_HINT;
+
+  // 대청중학교는 서울 강남구 대치동 소재입니다. 학교명이 짧게 입력되어도 강남구 기준으로 검색합니다.
+  if (/대청중(학교)?/.test(name)) return "서울특별시 강남구";
+
+  const districtMap = {
+    강남: "서울특별시 강남구",
+    서초: "서울특별시 서초구",
+    송파: "서울특별시 송파구",
+    강동: "서울특별시 강동구",
+    강서: "서울특별시 강서구",
+    양천: "서울특별시 양천구",
+    구로: "서울특별시 구로구",
+    금천: "서울특별시 금천구",
+    영등포: "서울특별시 영등포구",
+    동작: "서울특별시 동작구",
+    관악: "서울특별시 관악구",
+    마포: "서울특별시 마포구",
+    서대문: "서울특별시 서대문구",
+    은평: "서울특별시 은평구",
+    종로: "서울특별시 종로구",
+    중구: "서울특별시 중구",
+    용산: "서울특별시 용산구",
+    성동: "서울특별시 성동구",
+    광진: "서울특별시 광진구",
+    동대문: "서울특별시 동대문구",
+    중랑: "서울특별시 중랑구",
+    성북: "서울특별시 성북구",
+    강북: "서울특별시 강북구",
+    도봉: "서울특별시 도봉구",
+    노원: "서울특별시 노원구",
+  };
+
+  for (const [keyword, region] of Object.entries(districtMap)) {
+    if (name.includes(keyword)) return region;
+  }
+  return DEFAULT_REGION_HINT;
+}
+
+function normalizeAreaHint(value) {
+  let hint = String(value || "").replace(/\s+/g, " ").trim();
+  if (!hint) return "";
+  if (/^서울\s/.test(hint)) hint = hint.replace(/^서울\s+/, "서울특별시 ");
+  if (/^[가-힣]+구$/.test(hint)) hint = `서울특별시 ${hint}`;
+  return hint;
+}
+
+function getBroadAreaHint(areaHint) {
+  const hint = String(areaHint || "");
+  if (hint.includes("서울")) return DEFAULT_REGION_HINT;
+  return "";
+}
+
+function normalizeSearchQuery(value) {
+  return String(value || "")
+    .replace(/[\[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function makePlaceSearchNames(place) {
@@ -1004,14 +1111,40 @@ function makePlaceSearchNames(place) {
   return variants;
 }
 
-async function tryQueries(places, queries) {
+async function tryQueries(places, queries, areaHint = "") {
   for (const query of queries) {
     const docs = await keywordSearch(places, query);
     if (docs.length > 0) {
-      return { ...docs[0], candidateCount: docs.length };
+      const picked = pickBestPlaceCandidate(docs, areaHint);
+      return { ...picked, candidateCount: docs.length, searchQuery: query };
     }
   }
   return null;
+}
+
+function pickBestPlaceCandidate(docs, areaHint) {
+  const normalizedHint = String(areaHint || "").replace(/\s+/g, "");
+  const isSeoulSearch = normalizedHint.includes("서울");
+  const districtMatch = normalizedHint.match(/([가-힣]+구)/);
+  const district = districtMatch ? districtMatch[1] : "";
+
+  return [...docs].sort((a, b) => {
+    const scoreA = scorePlaceCandidate(a, { isSeoulSearch, district });
+    const scoreB = scorePlaceCandidate(b, { isSeoulSearch, district });
+    return scoreB - scoreA;
+  })[0];
+}
+
+function scorePlaceCandidate(item, { isSeoulSearch, district }) {
+  const address = `${item.road_address_name || ""} ${item.address_name || ""}`;
+  let score = 0;
+  if (isSeoulSearch && address.includes("서울")) score += 100;
+  if (district && address.includes(district)) score += 80;
+  if (item.category_group_code === "FD6") score += 8;
+  if (item.category_name?.includes("음식점")) score += 6;
+  if (item.road_address_name) score += 3;
+  if (isSeoulSearch && address && !address.includes("서울")) score -= 50;
+  return score;
 }
 
 function keywordSearch(places, query) {
@@ -1022,7 +1155,7 @@ function keywordSearch(places, query) {
       } else {
         resolve([]);
       }
-    });
+    }, { size: 10 });
   });
 }
 
