@@ -4,7 +4,7 @@
 학교카드 사용처를 표와 지도에서 한눈에 확인할 수 있는 도구입니다.
 
 > 현재 버전은 **서울특별시교육청 공개자료 전용**입니다.  
-> 다른 시도교육청 자료는 아직 지원하지 않습니다.
+> 자동 불러오기는 서버 API가 필요하므로 **GitHub Pages 단독 배포가 아니라 Vercel 배포를 권장**합니다.
 
 ---
 
@@ -17,7 +17,95 @@
 - 카카오맵 기반 사용처 지도 표시
 - 같은 장소 여러 건 묶어서 표시
 - 마커 클릭 시 집행일자, 금액, 목적 확인
-- 수동 붙여넣기 방식도 지원
+- 수동 붙여넣기 방식 지원
+
+---
+
+## 배포 구조
+
+이 버전은 Vercel 배포에 맞춰 정리되어 있습니다.
+
+```text
+school-card-map/
+├─ api/
+│  └─ sen_fetch.py       # Vercel 자동수집 API
+├─ app.js                # 화면 동작
+├─ index.html            # 메인 화면
+├─ styles.css            # 스타일
+├─ server.py             # 로컬 실행용 서버
+├─ vercel.json           # Vercel rewrite 설정
+└─ README.md
+```
+
+프론트에서는 `/sen-fetch`로 요청하고, Vercel에서는 `vercel.json`이 이 요청을 `/api/sen_fetch`로 연결합니다.
+
+---
+
+## Vercel 배포 방법
+
+### 1. GitHub에 올리기
+
+```powershell
+git add .
+git commit -m "Deploy school card map to Vercel"
+git push
+```
+
+### 2. Vercel에서 프로젝트 만들기
+
+1. Vercel 접속
+2. GitHub 계정으로 로그인
+3. `Add New...` → `Project`
+4. `school-card-map` 저장소 선택
+5. Framework Preset은 `Other` 선택
+6. 별도 Build Command 없이 Deploy
+
+배포가 끝나면 아래 같은 주소가 생성됩니다.
+
+```text
+https://school-card-map.vercel.app
+```
+
+---
+
+## 카카오 지도 키 설정
+
+지도 표시를 사용하려면 카카오 개발자 콘솔에서 **JavaScript 키**를 발급받아야 합니다.
+
+카카오 개발자 콘솔의 플랫폼 설정에 Vercel 주소를 추가하세요.
+
+```text
+https://school-card-map.vercel.app
+```
+
+GitHub Pages 주소도 함께 사용할 경우 아래 도메인도 추가할 수 있습니다.
+
+```text
+https://sen-vip.github.io
+```
+
+앱 화면의 `지도 API 설정`에서 JavaScript 키를 입력하면 브라우저 localStorage에만 저장됩니다.
+
+> Admin 키나 REST API 키는 코드에 넣지 마세요.  
+> 이 앱에는 카카오 **JavaScript 키**만 입력하면 됩니다.
+
+---
+
+## 로컬 실행 방법
+
+Vercel 배포 전 로컬에서 테스트하려면 Python 서버를 실행합니다.
+
+```powershell
+python server.py
+```
+
+브라우저에서 아래 주소로 접속합니다.
+
+```text
+http://localhost:5500
+```
+
+로컬 서버는 `/sen-fetch` 요청을 직접 처리합니다.
 
 ---
 
@@ -26,8 +114,9 @@
 1. 학교명과 기준월을 입력합니다.
 2. `서울교육청에서 가져오기`를 누릅니다.
 3. 자료 확인 결과를 확인합니다.
-4. `지도 만들기`를 누릅니다.
-5. 표시 완료, 위치 확인, 지도 제외 내역을 확인합니다.
+4. 카카오 JavaScript 키를 입력합니다.
+5. `지도 만들기`를 누릅니다.
+6. 표시 완료, 위치 확인, 지도 제외 내역을 확인합니다.
 
 ---
 
@@ -67,18 +156,13 @@
 
 ---
 
-## 실행 방법
+## GitHub Pages에서 안 되는 이유
 
-이 도구의 자동 불러오기 기능은 `server.py`를 통해 실행됩니다.  
-GitHub Pages 같은 정적 배포만으로는 서울교육청 자동수집 기능이 동작하지 않을 수 있습니다.
+GitHub Pages는 정적 웹페이지 배포에는 적합하지만 `/sen-fetch` 같은 서버 API를 실행하지 못합니다.  
+따라서 이 앱은 GitHub Pages보다 **Vercel 배포**가 적합합니다.
 
-### 1. 파일 다운로드
+---
 
-저장소를 내려받거나 압축 파일을 해제합니다.
+## 라이선스
 
-### 2. 폴더 이동
-
-PowerShell 또는 터미널에서 프로젝트 폴더로 이동합니다.
-
-```powershell
-cd school-card-map
+MIT License

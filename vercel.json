@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    {
+      "source": "/sen-fetch",
+      "destination": "/api/sen_fetch"
+    }
+  ],
+  "functions": {
+    "api/sen_fetch.py": {
+      "maxDuration": 60
+    }
+  }
+}

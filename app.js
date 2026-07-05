@@ -304,7 +304,7 @@ function formatAutoFetchError(error) {
     return `${base} 자료는 가져왔지만 상세표를 읽지 못했습니다. 공개페이지 구조가 변경되었을 수 있습니다. 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
   }
 
-  return `${base} 자동 불러오기는 server.py 실행 후 http://localhost:5500에서 열어야 합니다. 인터넷 연결도 확인해 주세요. 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
+  return `${base} 자동 불러오기는 Vercel 배포 주소 또는 로컬 server.py 실행 주소에서 동작합니다. 현재 주소와 인터넷 연결을 확인해 주세요. 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
 }
 
 function renderAutoDebug(info = {}) {
