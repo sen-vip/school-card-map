@@ -1440,7 +1440,7 @@ async function searchPlaceForGroup(places, group) {
     if (query && !queries.includes(query)) queries.push(query);
   };
 
-  // v1.2.3: 지점명이 포함된 사용처는 학교 자치구보다 상호+지점명을 먼저 믿습니다.
+  // v1.2.4: 지점명이 포함된 사용처는 학교 자치구보다 상호+지점명을 먼저 믿습니다.
   // 학교 카드 사용처는 학교 근처가 아닐 수도 있으므로, 자치구는 보조 힌트로만 사용합니다.
   exactNames.forEach((name) => pushQuery(name));
   exactNames.forEach((name) => pushQuery(broadHint, name));
@@ -1753,6 +1753,8 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   const placeTokens = makeNameTokens(item.place_name || "");
   const hasBranchInfo = hasExplicitBranchInfo(originalName);
   const branchMatched = hasBranchTokenMatch(originalName, item.place_name || "");
+  const mainStoreMatched = hasMainStoreNameMatch(originalName, item.place_name || "");
+  const strongBranchMatch = hasBranchInfo && branchMatched && mainStoreMatched;
   const isSeoulResult = address.includes("서울");
   let score = 0;
   const reasons = [];
@@ -1769,9 +1771,10 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
     score += 18;
     reasons.push("학교 기준 자치구와 일치");
   } else if (district && isSeoulResult) {
-    const penalty = hasBranchInfo && branchMatched ? -3 : -12;
+    // v1.2.4: 상호와 지점명이 모두 맞으면 학교 자치구와 달라도 감점하지 않습니다.
+    const penalty = strongBranchMatch ? 0 : hasBranchInfo && branchMatched ? -3 : -12;
     score += penalty;
-    reasons.push(hasBranchInfo && branchMatched ? "지점명이 일치해 다른 자치구도 허용" : "서울 지역이나 자치구 불일치");
+    reasons.push(strongBranchMatch ? "상호와 지점명이 일치해 다른 자치구도 허용" : hasBranchInfo && branchMatched ? "지점명이 일치해 다른 자치구도 허용" : "서울 지역이나 자치구 불일치");
   }
 
   let nameScore = 0;
@@ -1791,14 +1794,17 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
         nameScore = 13;
         reasons.push("장소명 일부만 일치");
       } else {
-        nameScore = -38;
-        reasons.push("장소명 유사도 낮음");
+        nameScore = strongBranchMatch ? 8 : -38;
+        reasons.push(strongBranchMatch ? "상호와 지점명 기준으로 보정" : "장소명 유사도 낮음");
       }
     }
   }
   score += nameScore;
 
-  if (hasBranchInfo && branchMatched) {
+  if (strongBranchMatch) {
+    score += 38;
+    reasons.push("상호와 지점명 일치");
+  } else if (hasBranchInfo && branchMatched) {
     score += 24;
     reasons.push("지점명 일치");
   } else if (hasBranchInfo) {
@@ -1824,8 +1830,10 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
+  // 상호+지점명이 맞는 서울 결과는 사용자가 다시 고르지 않도록 바로 표시 완료 처리합니다.
+  if (strongBranchMatch && isSeoulResult) score = Math.max(score, 88);
   const mappedThreshold = hasBranchInfo && branchMatched && isSeoulResult ? 62 : 70;
-  const status = score >= mappedThreshold ? "mapped" : "needs_review";
+  const status = strongBranchMatch && isSeoulResult ? "mapped" : score >= mappedThreshold ? "mapped" : "needs_review";
   const reviewReason = makeReviewReason(status, reasons, item, areaHint, score);
   return {
     ...item,
@@ -1917,6 +1925,33 @@ function hasBranchTokenMatch(originalName, placeName) {
     const compact = token.replace(/점$/g, "");
     return target.includes(token) || (compact.length >= 2 && target.includes(compact));
   });
+}
+
+function removeBranchTokensFromComparable(value, branchTokens = []) {
+  let text = normalizeComparablePlaceName(value);
+  branchTokens.forEach((token) => {
+    const normalizedToken = normalizeComparablePlaceName(token);
+    const compactToken = normalizedToken.replace(/점$/g, "");
+    if (normalizedToken.length >= 2) text = text.replaceAll(normalizedToken, "");
+    if (compactToken.length >= 2) text = text.replaceAll(compactToken, "");
+  });
+  return text.trim();
+}
+
+function hasMainStoreNameMatch(originalName, placeName) {
+  const branchTokens = getBranchTokens(originalName);
+  if (!branchTokens.length) return false;
+
+  const originalMain = removeBranchTokensFromComparable(originalName, branchTokens);
+  const placeMain = removeBranchTokensFromComparable(placeName, branchTokens);
+  if (!originalMain || !placeMain) return false;
+
+  if (originalMain.length >= 2 && placeMain.includes(originalMain)) return true;
+  if (placeMain.length >= 2 && originalMain.includes(placeMain)) return true;
+
+  const originalPieces = makeNameTokens(originalMain).filter((token) => token.length >= 2);
+  const placePieces = makeNameTokens(placeMain).filter((token) => token.length >= 2);
+  return countTokenOverlap(originalPieces, placePieces) > 0;
 }
 
 function isCommonStoreName(value) {
