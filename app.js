@@ -1429,20 +1429,28 @@ function pushRowsToPending(group, message) {
 }
 
 async function searchPlaceForGroup(places, group) {
-  const schoolName = elements.schoolName.value.trim();
   const areaHint = getEffectiveAreaHint();
   const broadHint = getBroadAreaHint(areaHint);
+  const exactNames = makeBranchFirstSearchNames(group.place);
   const placeQueries = makePlaceSearchNames(group.place);
   const coreNames = makeCorePlaceNames(group.place);
-  const prefixes = uniqueValues([areaHint, broadHint, schoolName, ""]);
   const queries = [];
+  const pushQuery = (...parts) => {
+    const query = normalizeSearchQuery(parts.filter(Boolean).join(" "));
+    if (query && !queries.includes(query)) queries.push(query);
+  };
 
-  for (const place of uniqueValues([...placeQueries, ...coreNames])) {
-    for (const prefix of prefixes) {
-      const query = normalizeSearchQuery([prefix, place].filter(Boolean).join(" "));
-      if (query && !queries.includes(query)) queries.push(query);
-    }
-  }
+  // v1.2.3: 지점명이 포함된 사용처는 학교 자치구보다 상호+지점명을 먼저 믿습니다.
+  // 학교 카드 사용처는 학교 근처가 아닐 수도 있으므로, 자치구는 보조 힌트로만 사용합니다.
+  exactNames.forEach((name) => pushQuery(name));
+  exactNames.forEach((name) => pushQuery(broadHint, name));
+  exactNames.forEach((name) => pushQuery(areaHint, name));
+  placeQueries.forEach((name) => pushQuery(areaHint, name));
+  placeQueries.forEach((name) => pushQuery(broadHint, name));
+  coreNames.forEach((name) => pushQuery(areaHint, name));
+  coreNames.forEach((name) => pushQuery(broadHint, name));
+  placeQueries.forEach((name) => pushQuery(name));
+  coreNames.forEach((name) => pushQuery(name));
 
   return tryQueries(places, queries, areaHint, group.place);
 }
@@ -1674,6 +1682,7 @@ function makePlaceSearchNames(place) {
   const variants = [original];
   const noCorp = original
     .replace(/주식회사/g, "")
+    .replace(/유한회사|농업회사법인|재단법인|사단법인/g, "")
     .replace(/\(주\)|㈜/g, "")
     .trim();
   const spaced = noCorp
@@ -1687,6 +1696,29 @@ function makePlaceSearchNames(place) {
     if (item && !variants.includes(item)) variants.push(item);
   });
   return variants;
+}
+
+function makeBranchFirstSearchNames(place) {
+  const original = cleanCell(place);
+  const names = [];
+  const push = (value) => {
+    const cleaned = normalizeSearchQuery(String(value || "")
+      .replace(/주식회사/g, "")
+      .replace(/유한회사|농업회사법인|재단법인|사단법인/g, "")
+      .replace(/\(주\)|㈜/g, "")
+      .replace(/[&·]/g, " "));
+    if (cleaned && !names.includes(cleaned)) names.push(cleaned);
+  };
+
+  push(original);
+  push(original.replace(/[()]/g, " "));
+
+  const parenTokens = Array.from(original.matchAll(/\(([^)]{2,})\)/g)).map((match) => match[1].trim()).filter(Boolean);
+  const baseWithoutParen = original.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
+  parenTokens.forEach((token) => push(`${baseWithoutParen} ${token}`));
+
+  makePlaceSearchNames(original).forEach(push);
+  return uniqueValues(names);
 }
 
 async function tryQueries(places, queries, areaHint = "", originalName = "") {
@@ -1719,56 +1751,70 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   const placeNorm = normalizeComparablePlaceName(item.place_name || "");
   const originalTokens = makeNameTokens(originalName);
   const placeTokens = makeNameTokens(item.place_name || "");
+  const hasBranchInfo = hasExplicitBranchInfo(originalName);
+  const branchMatched = hasBranchTokenMatch(originalName, item.place_name || "");
+  const isSeoulResult = address.includes("서울");
   let score = 0;
   const reasons = [];
 
-  if (district && address.includes(district)) {
-    score += 40;
-    reasons.push("학교 기준 자치구와 일치");
-  } else if (district && address.includes("서울")) {
-    score -= 25;
-    reasons.push("서울 지역이나 자치구 불일치");
-  }
-
-  if (address.includes("서울")) {
-    score += 20;
+  if (isSeoulResult) {
+    score += 22;
     reasons.push("서울특별시 결과");
   } else if (address) {
-    score -= 50;
+    score -= 55;
     reasons.push("서울 외 지역 결과");
   }
 
+  if (district && address.includes(district)) {
+    score += 18;
+    reasons.push("학교 기준 자치구와 일치");
+  } else if (district && isSeoulResult) {
+    const penalty = hasBranchInfo && branchMatched ? -3 : -12;
+    score += penalty;
+    reasons.push(hasBranchInfo && branchMatched ? "지점명이 일치해 다른 자치구도 허용" : "서울 지역이나 자치구 불일치");
+  }
+
+  let nameScore = 0;
   if (originalNorm && placeNorm) {
     if (placeNorm === originalNorm) {
-      score += 38;
+      nameScore = 40;
       reasons.push("장소명 완전 일치");
     } else if (placeNorm.includes(originalNorm) || originalNorm.includes(placeNorm)) {
-      score += 30;
+      nameScore = 34;
       reasons.push("장소명 대부분 일치");
     } else {
       const overlap = countTokenOverlap(originalTokens, placeTokens);
       if (overlap >= 2) {
-        score += 22;
+        nameScore = 26;
         reasons.push("장소명 핵심 단어 일부 일치");
       } else if (overlap === 1) {
-        score += 12;
+        nameScore = 13;
         reasons.push("장소명 일부만 일치");
       } else {
-        score -= 35;
+        nameScore = -38;
         reasons.push("장소명 유사도 낮음");
       }
     }
   }
+  score += nameScore;
 
-  if (hasBranchTokenMatch(originalName, item.place_name || "")) {
-    score += 8;
+  if (hasBranchInfo && branchMatched) {
+    score += 24;
     reasons.push("지점명 일치");
+  } else if (hasBranchInfo) {
+    score -= 16;
+    reasons.push("지점명 확인 필요");
+  }
+
+  if (isCommonStoreName(originalName) && !hasBranchInfo && !(district && address.includes(district))) {
+    score -= 12;
+    reasons.push("흔한 상호명이라 지역 확인 필요");
   }
 
   if (item.category_group_code === "FD6") score += 6;
   if (item.category_name?.includes("음식점")) score += 5;
   if (item.road_address_name) score += 3;
-  if (queryCandidateCount >= 5 && score < 80) {
+  if (queryCandidateCount >= 5 && score < 80 && !branchMatched) {
     score -= 5;
     reasons.push("후보가 여러 개 있어 확인 필요");
   }
@@ -1778,7 +1824,8 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  const status = score >= 70 ? "mapped" : score >= 35 ? "needs_review" : "needs_review";
+  const mappedThreshold = hasBranchInfo && branchMatched && isSeoulResult ? 62 : 70;
+  const status = score >= mappedThreshold ? "mapped" : "needs_review";
   const reviewReason = makeReviewReason(status, reasons, item, areaHint, score);
   return {
     ...item,
@@ -1829,11 +1876,57 @@ function countTokenOverlap(aTokens, bTokens) {
   return aTokens.filter((token) => b.has(token) || [...b].some((other) => other.includes(token) || token.includes(other))).length;
 }
 
+function getBranchTokens(value) {
+  const text = String(value || "")
+    .replace(/주식회사|유한회사|농업회사법인|재단법인|사단법인|\(주\)|㈜/g, " ")
+    .replace(/[\[\]{}·.,_\-\/&+]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const tokens = [];
+  const add = (token) => {
+    const cleaned = String(token || "")
+      .replace(/[^가-힣A-Za-z0-9]/g, "")
+      .trim()
+      .toLowerCase();
+    if (cleaned.length >= 2 && !tokens.includes(cleaned)) tokens.push(cleaned);
+  };
+
+  Array.from(text.matchAll(/\(([^)]{2,})\)/g)).forEach((match) => add(match[1]));
+  Array.from(text.matchAll(/([가-힣A-Za-z0-9]+(?:점|본점|지점|호점|몰점|역점))/g)).forEach((match) => add(match[1]));
+
+  const splitTokens = text.replace(/[()]/g, " ").split(" ").map((token) => token.trim()).filter(Boolean);
+  if (splitTokens.length >= 2) {
+    splitTokens.slice(1).forEach((token) => {
+      if (/점|본점|지점|호점|역점|몰점|동|가|로|길|역|구|읍|면|리|타워|몰|센터|점$/.test(token) || token.length >= 3) {
+        add(token);
+      }
+    });
+  }
+  return tokens;
+}
+
+function hasExplicitBranchInfo(originalName) {
+  return getBranchTokens(originalName).length > 0;
+}
+
 function hasBranchTokenMatch(originalName, placeName) {
-  const branchPattern = /([가-힣A-Za-z0-9]+)(?:점|본점|지점)/g;
-  const original = Array.from(String(originalName || "").matchAll(branchPattern)).map((m) => m[1]);
+  const original = getBranchTokens(originalName);
   if (!original.length) return false;
-  return original.some((token) => String(placeName || "").includes(token));
+  const target = normalizeComparablePlaceName(placeName);
+  return original.some((token) => {
+    const compact = token.replace(/점$/g, "");
+    return target.includes(token) || (compact.length >= 2 && target.includes(compact));
+  });
+}
+
+function isCommonStoreName(value) {
+  const normalized = normalizeComparablePlaceName(value);
+  const commonNames = [
+    "본죽", "김밥천국", "스타벅스", "투썸플레이스", "이디야", "메가커피", "컴포즈커피",
+    "파리바게뜨", "뚜레쥬르", "서브웨이", "맥도날드", "버거킹", "롯데리아", "맘스터치",
+    "배스킨라빈스", "던킨", "파파존스", "피자헛", "도미노피자", "교촌치킨", "bhc", "bbq"
+  ];
+  return commonNames.some((name) => normalized.includes(normalizeComparablePlaceName(name)));
 }
 
 function makeCorePlaceNames(place) {
