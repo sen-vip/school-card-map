@@ -1820,7 +1820,11 @@ async function tryQueries(places, queries, areaHint = "", originalName = "") {
       const evaluated = calculatePlaceConfidence(originalName, doc, areaHint, query, docs.length);
       if (!best || evaluated.confidenceScore > best.confidenceScore) best = evaluated;
     }
-    if (best?.confidenceScore >= 82) break;
+    // v1.2.7: 여러 지점이 있는 상호는 처음 나온 후보만 믿지 않습니다.
+    // 이름만으로 높은 점수가 나와도, 뒤쪽 쿼리에서 학교/검색어 자치구와 더 잘 맞는 후보가 나올 수 있으므로
+    // 모든 검색 후보를 비교한 뒤 가장 좋은 후보를 고릅니다.
+    // 단, 상호+지점+지역이 모두 강하게 일치하는 사실상 확정 후보는 조기 종료합니다.
+    if (best?.confidenceScore >= 98 && best?.status === "mapped") break;
   }
 
   if (!best) return null;
@@ -1830,7 +1834,9 @@ async function tryQueries(places, queries, areaHint = "", originalName = "") {
 
 function calculatePlaceConfidence(originalName, item, areaHint = "", query = "", queryCandidateCount = 1) {
   const address = `${item.road_address_name || ""} ${item.address_name || ""}`.trim();
-  const district = extractDistrict(areaHint);
+  const schoolDistrict = extractDistrict(areaHint);
+  const queryDistrict = extractDistrict(query);
+  const district = queryDistrict || schoolDistrict;
   const originalNorm = normalizeComparablePlaceName(originalName);
   const placeNorm = normalizeComparablePlaceName(item.place_name || "");
   const originalTokens = makeNameTokens(originalName);
@@ -1853,12 +1859,16 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
     reasons.push("서울 외 지역 결과");
   }
 
-  if (district && address.includes(district)) {
-    score += 18;
+  if (queryDistrict && address.includes(queryDistrict)) {
+    score += 42;
+    reasons.push("검색어 자치구와 일치");
+  } else if (schoolDistrict && address.includes(schoolDistrict)) {
+    score += 30;
     reasons.push("학교 기준 자치구와 일치");
-  } else if (district && isSeoulResult) {
-    // v1.2.4: 상호와 지점명이 모두 맞으면 학교 자치구와 달라도 감점하지 않습니다.
-    const penalty = strongBranchMatch ? 0 : hasBranchInfo && branchMatched ? -3 : -12;
+  } else if ((queryDistrict || schoolDistrict) && isSeoulResult) {
+    // v1.2.7: 지점명이 명확하면 다른 구도 허용하되,
+    // 지점명이 없는 다지점 상호는 검색어/학교 자치구 후보를 더 위로 올립니다.
+    const penalty = strongBranchMatch ? 0 : hasBranchInfo && branchMatched ? -2 : -10;
     score += penalty;
     reasons.push(strongBranchMatch ? "상호와 지점명이 일치해 다른 자치구도 허용" : hasBranchInfo && branchMatched ? "지점명이 일치해 다른 자치구도 허용" : "서울 지역이나 자치구 불일치");
   }
@@ -1929,12 +1939,14 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   // v1.2.6: 실사용 우선. 서울 안에서 상호 핵심어 또는 지점명이 맞으면 일단 지도에 표시합니다.
   // 학교 자치구는 힌트일 뿐이며, 다른 구에서 식사한 경우도 정상 사용처로 봅니다.
   const nameLooksUsable = nameScore >= 26 || mainStoreMatched || coreStoreMatched || branchMatched || strongBranchMatch;
-  const districtMatch = district && address.includes(district);
+  const queryDistrictMatch = queryDistrict && address.includes(queryDistrict);
+  const schoolDistrictMatch = schoolDistrict && address.includes(schoolDistrict);
+  const districtMatch = queryDistrictMatch || schoolDistrictMatch;
   if (strongBranchMatch && isSeoulResult) score = Math.max(score, 92);
-  if (coreStoreMatched && isSeoulResult) score = Math.max(score, 82);
-  if (branchMatched && isSeoulResult) score = Math.max(score, 78);
-  if (nameScore >= 30 && isSeoulResult) score = Math.max(score, 74);
-  if (districtMatch && nameLooksUsable) score = Math.max(score, 72);
+  if (coreStoreMatched && isSeoulResult) score = Math.max(score, queryDistrictMatch || schoolDistrictMatch ? 88 : 82);
+  if (branchMatched && isSeoulResult) score = Math.max(score, queryDistrictMatch || schoolDistrictMatch ? 86 : 78);
+  if (nameScore >= 30 && isSeoulResult) score = Math.max(score, queryDistrictMatch ? 88 : schoolDistrictMatch ? 84 : 74);
+  if (districtMatch && nameLooksUsable) score = Math.max(score, queryDistrictMatch ? 86 : 78);
 
   const autoMapped = isSeoulResult && (
     strongBranchMatch ||
