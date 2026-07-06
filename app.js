@@ -807,6 +807,15 @@ function normalizeDate(value) {
   return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
 }
 
+function formatShortDate(value) {
+  const text = cleanCell(value);
+  const match = text.match(/(?:\d{4})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})/);
+  if (match) return `${match[1].padStart(2, "0")}.${match[2].padStart(2, "0")}`;
+  const shortMatch = text.match(/(\d{1,2})[.\-/월\s]+(\d{1,2})/);
+  if (shortMatch) return `${shortMatch[1].padStart(2, "0")}.${shortMatch[2].padStart(2, "0")}`;
+  return text;
+}
+
 function cleanPlace(value) {
   return cleanCell(value).replace(/^\[?카드\]?\s*/i, "").replace(/^[-–—]+$/, "");
 }
@@ -1002,38 +1011,32 @@ function getFailedGroups() {
 function renderTable() {
   const tab = state.currentTab;
   let rows = [];
-  let columns = [];
-  let colGroup = "";
+  let statusHeader = "상태";
 
   if (state.mode === "mapped") {
     if (tab === "mapped") {
       rows = getDisplayedRows();
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "지도상태"];
-      colGroup = renderColGroup();
+      statusHeader = "지도상태";
     } else if (tab === "excluded") {
       rows = state.excludedRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
-      colGroup = renderColGroup();
+      statusHeader = "제외사유";
     } else {
       rows = state.rawRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "상태"];
-      colGroup = renderColGroup();
+      statusHeader = "상태";
     }
+  } else if (tab === "target") {
+    rows = state.visibleRows;
+    statusHeader = "상태";
+  } else if (tab === "excluded") {
+    rows = state.excludedRows;
+    statusHeader = "제외사유";
   } else {
-    if (tab === "target") {
-      rows = state.visibleRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "상태"];
-      colGroup = renderColGroup();
-    } else if (tab === "excluded") {
-      rows = state.excludedRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
-      colGroup = renderColGroup();
-    } else {
-      rows = state.rawRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "정제결과"];
-      colGroup = renderColGroup();
-    }
+    rows = state.rawRows;
+    statusHeader = "정제결과";
   }
+
+  const columns = ["일자", "사용처", "금액", statusHeader];
+  const colGroup = renderColGroup();
 
   if (!rows.length) {
     let message = "해당 내역이 없습니다.";
@@ -1051,12 +1054,12 @@ function renderTable() {
     const canJump = state.mode === "mapped" && DISPLAY_STATUSES.includes(group?.status) && group?.marker;
     const status = getRowStatus(row, tab);
     const rowClass = [canJump ? "map-row" : "", getRowToneClass(group, tab, row)].filter(Boolean).join(" ");
+    const purposeMeta = renderPurposeMeta(row);
     return `<tr class="${rowClass}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
-      <td data-label="집행일자">${escapeHtml(row.date)}</td>
-      <td data-label="집행장소"><strong>${escapeHtml(row.place)}</strong></td>
-      <td data-label="집행금액" class="amount">${formatWon(row.amount)}</td>
-      <td data-label="집행목적"><div class="purpose-cell" title="${escapeHtml(row.purpose)}">${escapeHtml(row.purpose)}</div></td>
-      <td data-label="상태">${renderStatusBadge(status, tab, canJump, row.placeKey, row)}</td>
+      <td data-label="일자" class="date-cell" title="${escapeHtml(row.date)}">${escapeHtml(formatShortDate(row.date))}</td>
+      <td data-label="사용처" class="place-cell"><strong class="place-name">${escapeHtml(row.place)}</strong>${purposeMeta}</td>
+      <td data-label="금액" class="amount amount-cell">${formatWon(row.amount)}</td>
+      <td data-label="${escapeHtml(statusHeader)}" class="status-cell">${renderStatusBadge(status, tab, canJump, row.placeKey, row)}</td>
     </tr>`;
   }).join("");
 
@@ -1072,9 +1075,15 @@ function renderColGroup() {
     <col class="col-date" />
     <col class="col-place" />
     <col class="col-amount" />
-    <col />
-    <col class="col-action" />
+    <col class="col-status" />
   </colgroup>`;
+}
+
+function renderPurposeMeta(row) {
+  const parts = [row.purpose, row.target].map((item) => cleanCell(item)).filter(Boolean);
+  if (!parts.length) return "";
+  const text = parts.join(" · ");
+  return `<div class="purpose-meta" title="${escapeHtml(text)}">${escapeHtml(text)}</div>`;
 }
 
 function getRowToneClass(group, tab, row = null) {
@@ -1122,7 +1131,7 @@ function renderStatusBadge(text, tab, canJump = false, placeKey = "", row = null
 
     const action = group.status === "needs_review"
       ? `<button type="button" class="mini-action" data-edit-place-key="${escapeHtml(placeKey)}">위치 수정</button>`
-      : `<button type="button" class="mini-action ghost" data-edit-place-key="${escapeHtml(placeKey)}">다른 위치 찾기</button>`;
+      : `<button type="button" class="mini-action ghost" data-edit-place-key="${escapeHtml(placeKey)}">위치 수정</button>`;
     return `<div class="status-stack"><span class="badge ${statusClass}" title="${escapeHtml(title)}">${label}</span><small>${escapeHtml(group.placeName || group.address || title)}</small>${action}</div>`;
   }
 
