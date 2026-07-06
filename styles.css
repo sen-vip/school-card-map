@@ -904,3 +904,62 @@ tr.row-manual:hover { background: #ecfdf5; }
   .candidate-card { align-items: stretch; flex-direction: column; }
   .mini-use { width: 100%; }
 }
+
+/* v1.2.8 UI/UX top flow + tab cleanup */
+.launch-panel {
+  padding: 24px;
+}
+.launch-title-row {
+  align-items: flex-start;
+}
+.launch-title-row .help-text {
+  margin: 8px 0 0;
+}
+.launch-form-grid {
+  max-width: none;
+  grid-template-columns: minmax(260px, 1fr) minmax(190px, 260px) auto;
+  align-items: end;
+  gap: 14px;
+}
+.main-cta-slot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+.launch-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.launch-status-row .field-status {
+  margin-top: 0;
+  flex: 1 1 260px;
+}
+.compact-settings-line {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+.workflow-status-row {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5edf6;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+tr.row-muted { background: #fafafa; }
+tr.row-muted:hover { background: #f8fafc; }
+@media (max-width: 920px) {
+  .launch-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .main-cta-slot,
+  .main-cta-button {
+    width: 100%;
+  }
+  .compact-settings-line {
+    justify-content: flex-start;
+  }
+}

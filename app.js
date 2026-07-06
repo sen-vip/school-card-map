@@ -15,6 +15,7 @@ const SCHOOL_INFO_ENDPOINT = "/api/school_info";
 // REST API 키/Admin 키가 아니며, 카카오 개발자센터의 JavaScript SDK 도메인 제한으로 보호합니다.
 const DEFAULT_KAKAO_JS_KEY = "9a75b8f0e12044be3f4588a0f3c728b5";
 const DEFAULT_REGION_HINT = "서울특별시";
+const DISPLAY_STATUSES = ["mapped", "manual", "needs_review"];
 // 학교명 글자만 보고 자치구를 추정하면 구암중→중구처럼 오판할 수 있습니다.
 // 지역은 학교 주소 조회 결과에서만 확정하고, 아래 값은 주소 조회 실패 시 예시 학교 보조용으로만 사용합니다.
 const SCHOOL_REGION_FALLBACKS = {
@@ -272,7 +273,7 @@ function updateNextAction(mode = state.mode) {
     const reviewCount = getReviewRows().length;
     const failedCount = getFailedRows().length;
     const manualCount = getManualRows().length;
-    elements.nextActionDesc.textContent = `표시 완료 ${mappedRows.length}건 · ${formatWon(mappedAmount)}, 수동 확인 ${manualCount}건, 확인 필요 ${reviewCount}건, 검색 실패 ${failedCount}건입니다. 자료가 바뀌면 지도를 다시 만들 수 있습니다.`;
+    elements.nextActionDesc.textContent = `지도 표시 ${displayedRows.length}건 · ${formatWon(mappedAmount)}입니다. 이 중 확인 필요 ${reviewCount}건, 수동 확인 ${manualCount}건, 검색 실패 ${failedCount}건입니다.`;
     elements.ctaMapBtn.innerHTML = `<small>다시</small> 사용처 지도 다시 만들기`;
     elements.nextActionPanel.classList.add("complete");
   } else {
@@ -392,8 +393,8 @@ async function run({ withMap, skipResolveRegion = false }) {
     const reviewGroups = getReviewGroups();
     const failedGroups = getFailedGroups();
     const message = reviewGroups.length || failedGroups.length
-      ? `지도 생성이 완료되었습니다. 표시 완료 ${mappedGroups.length}곳, 확인 필요 ${reviewGroups.length}곳, 검색 실패 ${failedGroups.length}곳입니다. 확인 필요 항목은 위치 수정으로 직접 고를 수 있습니다.`
-      : `지도 생성이 완료되었습니다. 모든 위치가 정상 확인되었습니다. 표시 완료 ${mappedGroups.length}곳입니다.`;
+      ? `사용처 지도를 만들었어요. 지도 표시 ${mappedGroups.length}곳 중 ${reviewGroups.length}곳은 위치 확인이 필요하고, 검색 실패 ${failedGroups.length}곳은 전체 탭에서 다시 검색할 수 있습니다.`
+      : `사용처 지도를 만들었어요. 모든 위치가 정상 표시되었습니다. 지도 표시 ${mappedGroups.length}곳입니다.`;
     setStatus(message);
   } catch (error) {
     console.error(error);
@@ -887,15 +888,14 @@ function groupByPlace(rows) {
 function renderTabs() {
   const tabs = state.mode === "mapped"
     ? [
-        ["mapped", "표시 완료"],
-        ["review", "확인 필요"],
-        ["failed", "검색 실패"],
+        ["mapped", "지도 표시 대상"],
         ["excluded", "지도 제외"],
+        ["all", "전체"],
       ]
     : [
         ["target", "지도 대상"],
         ["excluded", "지도 제외"],
-        ["all", "전체 정제표"],
+        ["all", "전체"],
       ];
 
   if (!tabs.some(([key]) => key === state.currentTab)) state.currentTab = tabs[0][0];
@@ -904,11 +904,11 @@ function renderTabs() {
   ).join("");
 
   if (state.mode === "mapped") {
-    elements.tableHint.textContent = "표시 완료 행은 지도 이동, 확인 필요/검색 실패 행은 위치 수정을 할 수 있습니다.";
+    elements.tableHint.textContent = "지도 표시 대상에는 표시 완료, 수동 확인 완료, 확인 필요 항목이 함께 보입니다. 애매한 항목만 위치 수정으로 고르면 됩니다.";
   } else if (state.mode === "parsed") {
     elements.tableHint.textContent = "자료 확인 상태입니다. 위의 [사용처 지도 만들기] 버튼으로 지도까지 한 번에 만들 수 있습니다.";
   } else {
-    elements.tableHint.textContent = "[사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 순서대로 진행됩니다.";
+    elements.tableHint.textContent = "학교명과 기준월을 입력하고 [사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 이어집니다.";
   }
 }
 
@@ -938,7 +938,7 @@ function renderSummary() {
   $("#totalCount").textContent = `${state.rawRows.length}`;
   $("#totalAmount").textContent = formatWon(totalAmount);
   $("#targetCount").textContent = `${state.visibleRows.length}건 · ${formatWon(targetAmount)}`;
-  $("#mappedCount").textContent = hasSearchedMap ? `${mappedRows.length}건 · ${formatWon(mappedAmountOnly)}` : "검색 전";
+  $("#mappedCount").textContent = hasSearchedMap ? `${displayedRows.length}건 · ${formatWon(displayedAmount)}` : "검색 전";
   if (elements.manualCount) elements.manualCount.textContent = hasSearchedMap ? `${manualRows.length}건` : "검색 전";
   $("#pendingCount").textContent = hasSearchedMap ? `${reviewRows.length}건` : "검색 전";
   if (elements.failedCount) elements.failedCount.textContent = hasSearchedMap ? `${failedRows.length}건` : "검색 전";
@@ -968,7 +968,7 @@ function getManualRows() {
 }
 
 function getDisplayedRows() {
-  return getRowsByGroupStatus(["mapped", "manual"]);
+  return getRowsByGroupStatus(DISPLAY_STATUSES);
 }
 
 function getReviewRows() {
@@ -988,7 +988,7 @@ function getMappedGroups() {
 }
 
 function getDisplayGroups() {
-  return state.groupedPlaces.filter((group) => ["mapped", "manual"].includes(group.status));
+  return state.groupedPlaces.filter((group) => DISPLAY_STATUSES.includes(group.status));
 }
 
 function getReviewGroups() {
@@ -1014,13 +1014,9 @@ function renderTable() {
       rows = state.excludedRows;
       columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
       colGroup = renderColGroup();
-    } else if (tab === "failed") {
-      rows = getFailedRows();
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "검색 결과"];
-      colGroup = renderColGroup();
     } else {
-      rows = getReviewRows();
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "확인내용"];
+      rows = state.rawRows;
+      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "상태"];
       colGroup = renderColGroup();
     }
   } else {
@@ -1042,9 +1038,8 @@ function renderTable() {
   if (!rows.length) {
     let message = "해당 내역이 없습니다.";
     if (!state.rawRows.length) message = "아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 사용처 지도 만들기를 눌러주세요.";
-    else if (state.mode === "mapped" && tab === "mapped") message = "아직 표시 완료된 장소가 없습니다. 확인 필요 또는 검색 실패 내역을 확인해 주세요.";
-    else if (state.mode === "mapped" && tab === "review") message = "확인 필요한 장소가 없습니다.";
-    else if (state.mode === "mapped" && tab === "failed") message = "검색 실패한 장소가 없습니다.";
+    else if (state.mode === "mapped" && tab === "mapped") message = "지도에 표시된 장소가 없습니다. 전체 탭에서 검색 실패 내역을 확인해 주세요.";
+    else if (state.mode === "mapped" && tab === "excluded") message = "지도 제외 내역이 없습니다.";
     elements.tableWrap.className = "table-wrap empty-state";
     elements.tableWrap.innerHTML = `<p>${escapeHtml(message)}</p>`;
     return;
@@ -1053,15 +1048,15 @@ function renderTable() {
   elements.tableWrap.className = "table-wrap";
   const body = rows.map((row) => {
     const group = getGroupForRow(row);
-    const canJump = state.mode === "mapped" && ["mapped", "manual", "needs_review"].includes(group?.status) && group?.marker;
+    const canJump = state.mode === "mapped" && DISPLAY_STATUSES.includes(group?.status) && group?.marker;
     const status = getRowStatus(row, tab);
-    const rowClass = [canJump ? "map-row" : "", getRowToneClass(group, tab)].filter(Boolean).join(" ");
+    const rowClass = [canJump ? "map-row" : "", getRowToneClass(group, tab, row)].filter(Boolean).join(" ");
     return `<tr class="${rowClass}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
       <td>${escapeHtml(row.date)}</td>
       <td><strong>${escapeHtml(row.place)}</strong></td>
       <td class="amount">${formatWon(row.amount)}</td>
       <td><div class="purpose-cell" title="${escapeHtml(row.purpose)}">${escapeHtml(row.purpose)}</div></td>
-      <td>${renderStatusBadge(status, tab, canJump, row.placeKey)}</td>
+      <td>${renderStatusBadge(status, tab, canJump, row.placeKey, row)}</td>
     </tr>`;
   }).join("");
 
@@ -1082,54 +1077,57 @@ function renderColGroup() {
   </colgroup>`;
 }
 
-function getRowToneClass(group, tab) {
-  if (tab === "review" || group?.status === "needs_review") return "row-review";
-  if (tab === "failed" || group?.status === "failed") return "row-failed";
+function getRowToneClass(group, tab, row = null) {
+  if (group?.status === "needs_review") return "row-review";
+  if (group?.status === "failed") return "row-failed";
   if (group?.status === "manual") return "row-manual";
+  if (tab === "excluded" || row?.excludeReason) return "row-muted";
   return "";
 }
 
+function getStatusLabelFromGroup(group) {
+  if (!group) return "지도 대상";
+  if (group.status === "manual") return "수동 확인 완료";
+  if (group.status === "needs_review") return "확인 필요";
+  if (group.status === "failed") return "검색 실패";
+  return "표시 완료";
+}
+
 function getRowStatus(row, tab) {
-  if (state.mode !== "mapped") {
-    if (tab === "target") return "지도 대상";
-    if (tab === "excluded") return row.excludeReason;
+  if (row.excludeReason && (tab === "excluded" || tab === "all" || state.mode === "mapped")) return row.excludeReason;
+
+  const group = getGroupForRow(row);
+  if (state.mode === "mapped") {
+    if (group?.status === "failed") return group.reviewReason || "장소 검색 결과가 없습니다.";
+    if (group) return getStatusLabelFromGroup(group);
     return row.excludeReason || "지도 대상";
   }
 
-  const group = getGroupForRow(row);
-  if (tab === "mapped") {
-    if (group?.status === "manual") return "수동 확인 완료";
-    if (group?.status === "needs_review") return "확인 필요";
-    return "표시 완료";
-  }
+  if (tab === "target") return "지도 대상";
   if (tab === "excluded") return row.excludeReason;
-  if (tab === "failed") return group?.reviewReason || "장소 검색 결과가 없습니다.";
-  return group?.reviewReason || row.locationStatus || "위치 확인 필요";
+  return row.excludeReason || "지도 대상";
 }
 
-function renderStatusBadge(text, tab, canJump = false, placeKey = "") {
-  let className = "";
-  if (tab === "excluded") className = "gray";
-  if (tab === "review") className = "warn";
-  if (tab === "failed") className = "danger";
-
+function renderStatusBadge(text, tab, canJump = false, placeKey = "", row = null) {
   const group = state.groupedPlaces.find((item) => item.key === placeKey);
-  if (canJump && group) {
-    const statusClass = group.status === "manual" ? "manual" : group.status === "needs_review" ? "warn" : "";
-    const label = group.status === "manual" ? "수동 확인 완료" : group.status === "needs_review" ? "확인 필요" : "표시 완료";
-    const candidateText = group.candidateCount > 1 ? ` · 후보 ${group.candidateCount}개` : "";
-    const scoreText = Number.isFinite(group.confidenceScore) ? ` · ${group.confidenceScore}점` : "";
+
+  if (group && ["mapped", "manual", "needs_review", "failed"].includes(group.status)) {
+    const statusClass = group.status === "manual" ? "manual" : group.status === "needs_review" ? "warn" : group.status === "failed" ? "danger" : "";
+    const label = getStatusLabelFromGroup(group);
     const title = group.reviewReason || group.address || label;
+
+    if (group.status === "failed") {
+      return `<div class="status-stack"><span class="badge danger">검색 실패</span><small>${escapeHtml(title || "검색 결과 없음")}</small><button type="button" class="mini-action" data-edit-place-key="${escapeHtml(placeKey || group.key)}">위치 수정</button></div>`;
+    }
+
     const action = group.status === "needs_review"
       ? `<button type="button" class="mini-action" data-edit-place-key="${escapeHtml(placeKey)}">위치 수정</button>`
       : `<button type="button" class="mini-action ghost" data-edit-place-key="${escapeHtml(placeKey)}">다른 위치 찾기</button>`;
-    return `<div class="status-stack"><span class="badge ${statusClass}" title="${escapeHtml(title)}">${label}${escapeHtml(candidateText)}${escapeHtml(scoreText)}</span><small>${escapeHtml(group.placeName || group.address || title)}</small>${action}</div>`;
+    return `<div class="status-stack"><span class="badge ${statusClass}" title="${escapeHtml(title)}">${label}</span><small>${escapeHtml(group.placeName || group.address || title)}</small>${action}</div>`;
   }
 
-  if (tab === "failed" && group) {
-    return `<div class="status-stack"><span class="badge danger">검색 실패</span><small>${escapeHtml(text || "검색 결과 없음")}</small><button type="button" class="mini-action" data-edit-place-key="${escapeHtml(placeKey || group.key)}">위치 수정</button></div>`;
-  }
-
+  let className = "";
+  if (tab === "excluded" || row?.excludeReason) className = "gray";
   return `<span class="badge ${className}">${escapeHtml(text || "-")}</span>`;
 }
 
@@ -1207,7 +1205,7 @@ function openLocationEditor(placeKey) {
   state.manualSearchCandidates = [];
   const areaHint = getEffectiveAreaHint();
   const defaultQuery = normalizeSearchQuery([areaHint, group.place].filter(Boolean).join(" "));
-  elements.locationModalTitle.textContent = `${group.place} 위치 수정`;
+  elements.locationModalTitle.textContent = `${group.place} 위치 확인`;
   elements.locationSearchInput.value = defaultQuery;
   elements.locationCandidateList.innerHTML = `<p class="candidate-empty">검색어를 확인한 뒤 [다시 검색]을 눌러 후보를 선택하세요.</p>`;
   elements.locationModal.classList.remove("hidden");

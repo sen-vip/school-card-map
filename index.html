@@ -10,7 +10,7 @@
   <header class="app-header">
     <div class="header-inner">
       <div>
-        <p class="eyebrow">카드지도 v1.2.7</p>
+        <p class="eyebrow">카드지도 v1.2.8</p>
         <h1>학교카드 사용지도</h1>
         <p class="lead">서울특별시교육청 업무추진비 공개자료를 불러와 학교카드 사용처를 지도와 표로 정리합니다.</p>
       </div>
@@ -22,32 +22,53 @@
   </header>
 
   <main class="shell">
-    <section class="panel setup-panel compact-panel" aria-labelledby="setup-title">
-      <div class="section-title-row">
+    <section class="panel setup-panel launch-panel" aria-labelledby="setup-title">
+      <div class="section-title-row launch-title-row">
         <div>
-          <p class="eyebrow">기본 정보</p>
-          <h2 id="setup-title">학교와 기준월을 선택하세요</h2>
+          <p class="eyebrow">학교카드 사용처 지도</p>
+          <h2 id="setup-title">학교카드 사용처 지도</h2>
+          <p class="help-text">학교명과 기준월만 입력하면 자료 수집부터 지도 표시까지 한 번에 진행합니다.</p>
         </div>
         <button type="button" class="ghost-button" id="sampleBtn">예시 넣기</button>
       </div>
 
-      <div class="form-grid main-form-grid">
-        <label>
+      <div class="form-grid main-form-grid launch-form-grid">
+        <label class="school-field">
           <span>학교명</span>
-          <input id="schoolName" type="text" placeholder="예: 금천고, 구암중, 이수중" autocomplete="off" />
-          <em id="schoolStatus" class="field-status">학교 확인 전 · 학교 주소에서 검색 지역을 자동으로 잡습니다.</em>
+          <input id="schoolName" type="text" placeholder="예: 금천고, 구암중, 무학여고" autocomplete="off" />
         </label>
-        <label>
+        <label class="month-field">
           <span>기준월</span>
           <input id="baseMonth" type="month" />
         </label>
+        <div class="main-cta-slot" aria-label="사용처 지도 만들기 실행">
+          <button type="button" class="primary-button step-button large-action main-cta-button" id="fetchSenBtn"><small>시작</small> 사용처 지도 만들기</button>
+        </div>
       </div>
 
-      <div class="settings-line">
-        <span class="setting-pill seoul-only">서울특별시교육청 공개자료 전용</span>
-        <span class="setting-pill" id="keyStatus">지도 API 설정 완료</span>
-        <span class="setting-pill" id="regionStatus">검색 지역: 서울특별시</span>
+      <div class="launch-status-row">
+        <em id="schoolStatus" class="field-status">학교 확인 전 · 학교 주소에서 검색 지역을 자동으로 잡습니다.</em>
+        <div class="settings-line compact-settings-line">
+          <span class="setting-pill seoul-only">서울특별시교육청 공개자료 전용</span>
+          <span class="setting-pill" id="regionStatus">검색 지역: 서울특별시</span>
+          <span class="setting-pill" id="keyStatus">카카오 지도 설정 완료</span>
+        </div>
       </div>
+
+      <input id="senSourceUrl" type="hidden" value="https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do" />
+      <input id="senProxyUrl" type="hidden" value="/sen-fetch" readonly />
+
+      <div class="workflow-status-row">
+        <span id="autoStatusText" class="status-text" role="status">대기 중입니다. 사용처 지도 만들기를 누르면 학교 확인, 자료 수집, 위치 검색을 순서대로 진행합니다.</span>
+      </div>
+
+      <ol class="workflow-steps" id="workflowSteps" aria-label="진행 상태">
+        <li data-step="school">학교 지역 확인</li>
+        <li data-step="fetch">서울교육청 자료 수집</li>
+        <li data-step="parse">지도 대상 정리</li>
+        <li data-step="map">사용처 위치 검색</li>
+        <li data-step="done">지도 표시 완료</li>
+      </ol>
 
       <details class="notice settings-details">
         <summary>지도 고급 설정</summary>
@@ -61,34 +82,8 @@
             <input id="areaHint" type="text" placeholder="자동 추정됩니다. 필요할 때만 예: 강남구" />
           </label>
         </div>
-        <p>일반 사용자는 수정하지 않아도 됩니다. 기본 카카오 JavaScript 키와 학교 주소 기반 검색 지역을 자동으로 사용합니다. 직접 입력한 키와 지역 보조어는 이 브라우저의 localStorage에만 저장되며, 지역 보조어는 지도 장소 검색 보정에만 사용됩니다.</p>
+        <p>일반 사용자는 수정하지 않아도 됩니다. 검색 지역은 학교 주소를 기준으로 자동 설정됩니다.</p>
       </details>
-    </section>
-
-    <section class="panel auto-panel primary-workflow" aria-labelledby="auto-title">
-      <div class="section-title-row">
-        <div>
-          <p class="eyebrow">한 번에 만들기</p>
-          <h2 id="auto-title">사용처 지도 만들기</h2>
-        </div>
-      </div>
-      <p class="help-text">학교명과 기준월만 입력하면 학교 주소에서 자치구를 확인하고, 서울교육청 자료 수집과 사용처 위치 검색까지 한 번에 진행합니다.</p>
-
-      <input id="senSourceUrl" type="hidden" value="https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do" />
-      <input id="senProxyUrl" type="hidden" value="/sen-fetch" readonly />
-
-      <div class="action-row main-action-row">
-        <span id="autoStatusText" class="status-text" role="status">대기 중입니다. 버튼 하나로 자료 조회와 지도 생성을 이어서 실행합니다.</span>
-        <button type="button" class="primary-button step-button large-action main-cta-button" id="fetchSenBtn"><small>시작</small> 사용처 지도 만들기</button>
-      </div>
-
-      <ol class="workflow-steps" id="workflowSteps" aria-label="진행 상태">
-        <li data-step="school">학교 지역 확인</li>
-        <li data-step="fetch">서울교육청 자료 수집</li>
-        <li data-step="parse">지도 대상 정리</li>
-        <li data-step="map">사용처 위치 검색</li>
-        <li data-step="done">지도 표시 완료</li>
-      </ol>
 
       <details class="notice auto-debug" id="autoDebugBox">
         <summary>자동수집 상세 정보</summary>
@@ -127,7 +122,7 @@
         <strong id="targetCount">0건</strong>
       </article>
       <article class="summary-card good strong-good">
-        <span>표시 완료</span>
+        <span>지도 표시</span>
         <strong id="mappedCount">0건</strong>
       </article>
       <article class="summary-card manual">
@@ -153,7 +148,7 @@
         <div class="section-title-row sticky-title">
           <div>
             <p class="eyebrow">RESULT</p>
-            <h2 id="list-title">정제 결과</h2>
+            <h2 id="list-title">사용처 목록</h2>
           </div>
           <div class="tabs" id="resultTabs" role="tablist" aria-label="결과 탭"></div>
         </div>
@@ -243,7 +238,7 @@
     <div class="location-dialog">
       <div class="location-dialog-head">
         <div>
-          <p class="eyebrow">LOCATION CHECK</p>
+          <p class="eyebrow">위치 확인</p>
           <h2 id="locationModalTitle">위치 수정</h2>
         </div>
         <button type="button" class="ghost-button icon-button" id="locationCloseBtn" data-close-location-modal aria-label="닫기">×</button>
@@ -260,7 +255,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용지도 · 카드지도 v1.2.7 · 학돌랩</p>
+    <p>학교카드 사용지도 · 카드지도 v1.2.8 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>
