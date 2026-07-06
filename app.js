@@ -1698,6 +1698,11 @@ function makePlaceSearchNames(place) {
 
   sources.forEach((source) => {
     push(source);
+    if (/파리바게[트드]/.test(source)) push(source.replace(/파리바게트|파리바게드/g, "파리바게뜨"));
+    if (/파리바게뜨/.test(source)) {
+      push(source.replace(/파리바게뜨/g, "파리바게트"));
+      push(source.replace(/파리바게뜨/g, "파리바게드"));
+    }
     makeSlashAwareSearchVariants(source).forEach(push);
     makeBranchSuffixVariants(source).forEach(push);
   });
@@ -1902,29 +1907,45 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   }
 
   if (isCommonStoreName(originalName) && !hasBranchInfo && !(district && address.includes(district))) {
-    score -= 12;
-    reasons.push("흔한 상호명이라 지역 확인 필요");
+    // v1.2.6: 프랜차이즈라도 서울 안의 후보가 잡히면 우선 지도에 표시합니다.
+    // 지점이 애매하면 사용자가 나중에 위치 수정으로 고칠 수 있게 하고, 자동 표시를 더 우선합니다.
+    score -= 4;
+    reasons.push("흔한 상호명이나 서울 결과를 우선 표시");
   }
 
   if (item.category_group_code === "FD6") score += 6;
   if (item.category_name?.includes("음식점")) score += 5;
   if (item.road_address_name) score += 3;
-  if (queryCandidateCount >= 5 && score < 80 && !branchMatched) {
-    score -= 5;
-    reasons.push("후보가 여러 개 있어 확인 필요");
+  if (queryCandidateCount >= 5 && score < 52 && !branchMatched) {
+    score -= 3;
+    reasons.push("후보가 여러 개 있어 참고 필요");
   }
   if (originalNorm.length <= 2) {
-    score -= 12;
-    reasons.push("상호명이 짧아 오탐 가능");
+    score -= 8;
+    reasons.push("상호명이 짧아 참고 필요");
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  // v1.2.5: 상호+지점명이 맞거나, 법인명 제거 후 실제 상호가 맞는 서울 결과는 바로 표시 완료 처리합니다.
-  if (strongBranchMatch && isSeoulResult) score = Math.max(score, 90);
-  if (coreStoreMatched && isSeoulResult && (district && address.includes(district) || addressHintMatched || !hasBranchInfo)) score = Math.max(score, 82);
-  const mappedThreshold = hasBranchInfo && branchMatched && isSeoulResult ? 60 : coreStoreMatched && isSeoulResult ? 68 : 70;
-  const autoMapped = isSeoulResult && (strongBranchMatch || (coreStoreMatched && score >= 78));
-  const status = autoMapped ? "mapped" : score >= mappedThreshold ? "mapped" : "needs_review";
+  // v1.2.6: 실사용 우선. 서울 안에서 상호 핵심어 또는 지점명이 맞으면 일단 지도에 표시합니다.
+  // 학교 자치구는 힌트일 뿐이며, 다른 구에서 식사한 경우도 정상 사용처로 봅니다.
+  const nameLooksUsable = nameScore >= 26 || mainStoreMatched || coreStoreMatched || branchMatched || strongBranchMatch;
+  const districtMatch = district && address.includes(district);
+  if (strongBranchMatch && isSeoulResult) score = Math.max(score, 92);
+  if (coreStoreMatched && isSeoulResult) score = Math.max(score, 82);
+  if (branchMatched && isSeoulResult) score = Math.max(score, 78);
+  if (nameScore >= 30 && isSeoulResult) score = Math.max(score, 74);
+  if (districtMatch && nameLooksUsable) score = Math.max(score, 72);
+
+  const autoMapped = isSeoulResult && (
+    strongBranchMatch ||
+    coreStoreMatched ||
+    branchMatched ||
+    nameScore >= 30 ||
+    (districtMatch && nameScore >= 13) ||
+    (queryCandidateCount <= 3 && nameScore >= 13)
+  );
+  const mappedThreshold = isSeoulResult ? 50 : 70;
+  const status = autoMapped || (isSeoulResult && score >= mappedThreshold) ? "mapped" : "needs_review";
   const reviewReason = makeReviewReason(status, reasons, item, areaHint, score);
   return {
     ...item,
@@ -1950,6 +1971,7 @@ function extractDistrict(value) {
 
 function normalizeComparablePlaceName(value) {
   return String(value || "")
+    .replace(/파리바게트|파리바게드/g, "파리바게뜨")
     .replace(/주식회사|유한회사|농업회사법인|재단법인|사단법인/g, "")
     .replace(/\(주\)|㈜|주\)/g, "")
     .replace(/코리아|대한민국/g, "")
