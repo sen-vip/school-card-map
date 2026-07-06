@@ -1052,11 +1052,11 @@ function renderTable() {
     const status = getRowStatus(row, tab);
     const rowClass = [canJump ? "map-row" : "", getRowToneClass(group, tab, row)].filter(Boolean).join(" ");
     return `<tr class="${rowClass}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
-      <td>${escapeHtml(row.date)}</td>
-      <td><strong>${escapeHtml(row.place)}</strong></td>
-      <td class="amount">${formatWon(row.amount)}</td>
-      <td><div class="purpose-cell" title="${escapeHtml(row.purpose)}">${escapeHtml(row.purpose)}</div></td>
-      <td>${renderStatusBadge(status, tab, canJump, row.placeKey, row)}</td>
+      <td data-label="집행일자">${escapeHtml(row.date)}</td>
+      <td data-label="집행장소"><strong>${escapeHtml(row.place)}</strong></td>
+      <td data-label="집행금액" class="amount">${formatWon(row.amount)}</td>
+      <td data-label="집행목적"><div class="purpose-cell" title="${escapeHtml(row.purpose)}">${escapeHtml(row.purpose)}</div></td>
+      <td data-label="상태">${renderStatusBadge(status, tab, canJump, row.placeKey, row)}</td>
     </tr>`;
   }).join("");
 
