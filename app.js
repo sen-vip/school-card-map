@@ -1301,10 +1301,41 @@ async function findSchoolRegionWithSchoolInfoApi(schoolName) {
 function makeSchoolSearchCandidates(schoolName) {
   const compact = String(schoolName || "").replace(/\s+/g, "").trim();
   const candidates = [compact];
-  if (/중$/.test(compact)) candidates.push(`${compact}학교`);
-  if (/고$/.test(compact)) candidates.push(`${compact}등학교`, `${compact}학교`);
-  if (/초$/.test(compact)) candidates.push(`${compact}등학교`, `${compact}학교`);
-  if (!/학교$/.test(compact)) candidates.push(`${compact}학교`);
+  const add = (value) => {
+    if (value && !candidates.includes(value)) candidates.push(value);
+  };
+
+  const suffixAliases = [
+    ["여고", "여자고등학교", "여자고"],
+    ["남고", "남자고등학교", "남자고"],
+    ["여중", "여자중학교", "여자중"],
+    ["남중", "남자중학교", "남자중"],
+    ["여자고", "여자고등학교", "여자고"],
+    ["남자고", "남자고등학교", "남자고"],
+    ["여자중", "여자중학교", "여자중"],
+    ["남자중", "남자중학교", "남자중"],
+  ];
+  suffixAliases.forEach(([shortSuffix, fullSuffix, middleSuffix]) => {
+    if (compact.endsWith(shortSuffix)) {
+      const stem = compact.slice(0, -shortSuffix.length);
+      add(`${stem}${fullSuffix}`);
+      add(`${stem}${middleSuffix}`);
+      add(`${compact}학교`);
+      if (shortSuffix.endsWith("고")) add(`${compact}등학교`);
+    }
+  });
+
+  if (/중$/.test(compact)) add(`${compact}학교`);
+  if (/고$/.test(compact)) {
+    add(`${compact}등학교`);
+    add(`${compact}학교`);
+  }
+  if (/초$/.test(compact)) {
+    add(`${compact}등학교`);
+    add(`${compact}학교`);
+  }
+  if (!/학교$/.test(compact)) add(`${compact}학교`);
+  if (/학교$/.test(compact)) add(compact.replace(/학교$/, ""));
   return uniqueValues(candidates);
 }
 

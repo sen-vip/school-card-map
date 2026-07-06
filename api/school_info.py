@@ -27,24 +27,50 @@ def normalize_school_key(value: str) -> str:
 def make_school_candidates(school_name: str) -> list[str]:
     compact = re.sub(r"\s+", "", clean_text(school_name))
     values = [compact]
+
+    def add(value: str) -> None:
+        if value and value not in values:
+            values.append(value)
+
+    # 학교명 줄임말 보정
+    # 예: 무학여고 -> 무학여자고등학교, 무학여자고
+    #     선린남고 -> 선린남자고등학교, 선린남자고
+    #     ○○여중/남중도 같은 방식으로 보정
+    suffix_aliases = [
+        ("여고", "여자고등학교", "여자고"),
+        ("남고", "남자고등학교", "남자고"),
+        ("여중", "여자중학교", "여자중"),
+        ("남중", "남자중학교", "남자중"),
+        ("여자고", "여자고등학교", "여자고"),
+        ("남자고", "남자고등학교", "남자고"),
+        ("여자중", "여자중학교", "여자중"),
+        ("남자중", "남자중학교", "남자중"),
+    ]
+    for short_suffix, full_suffix, middle_suffix in suffix_aliases:
+        if compact.endswith(short_suffix):
+            stem = compact[: -len(short_suffix)]
+            add(f"{stem}{full_suffix}")
+            add(f"{stem}{middle_suffix}")
+            add(f"{compact}학교")
+            if short_suffix.endswith("고"):
+                add(f"{compact}등학교")
+
     if compact.endswith("중"):
-        values.append(f"{compact}학교")
+        add(f"{compact}학교")
     if compact.endswith("고"):
-        values.extend([f"{compact}등학교", f"{compact}학교"])
+        add(f"{compact}등학교")
+        add(f"{compact}학교")
     if compact.endswith("초"):
-        values.extend([f"{compact}등학교", f"{compact}학교"])
+        add(f"{compact}등학교")
+        add(f"{compact}학교")
     if compact and not compact.endswith("학교"):
-        values.append(f"{compact}학교")
+        add(f"{compact}학교")
 
     # 입력이 '이수중학교'처럼 이미 완성형인 경우도 원문과 축약형을 모두 둔다.
     if compact.endswith("학교"):
-        values.append(compact[:-2])
+        add(compact[:-2])
 
-    deduped: list[str] = []
-    for item in values:
-        if item and item not in deduped:
-            deduped.append(item)
-    return deduped
+    return values
 
 
 def extract_region_hint(address: str) -> str:

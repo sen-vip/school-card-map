@@ -43,6 +43,66 @@ def clean_text(value: str) -> str:
     return value
 
 
+def normalize_school_key(value: str) -> str:
+    text = re.sub(r"\s+", "", clean_text(value))
+    text = re.sub(r"학교$", "", text)
+    text = re.sub(r"등$", "", text)
+    return text
+
+
+def make_school_search_candidates(school_name: str) -> list[str]:
+    compact = re.sub(r"\s+", "", clean_text(school_name))
+    values = [compact]
+
+    def add(value: str) -> None:
+        if value and value not in values:
+            values.append(value)
+
+    suffix_aliases = [
+        ("여고", "여자고등학교", "여자고"),
+        ("남고", "남자고등학교", "남자고"),
+        ("여중", "여자중학교", "여자중"),
+        ("남중", "남자중학교", "남자중"),
+        ("여자고", "여자고등학교", "여자고"),
+        ("남자고", "남자고등학교", "남자고"),
+        ("여자중", "여자중학교", "여자중"),
+        ("남자중", "남자중학교", "남자중"),
+    ]
+    for short_suffix, full_suffix, middle_suffix in suffix_aliases:
+        if compact.endswith(short_suffix):
+            stem = compact[: -len(short_suffix)]
+            add(f"{stem}{full_suffix}")
+            add(f"{stem}{middle_suffix}")
+            add(f"{compact}학교")
+            if short_suffix.endswith("고"):
+                add(f"{compact}등학교")
+
+    if compact.endswith("중"):
+        add(f"{compact}학교")
+    if compact.endswith("고"):
+        add(f"{compact}등학교")
+        add(f"{compact}학교")
+    if compact.endswith("초"):
+        add(f"{compact}등학교")
+        add(f"{compact}학교")
+    if compact and not compact.endswith("학교"):
+        add(f"{compact}학교")
+    if compact.endswith("학교"):
+        add(compact[:-2])
+    return values
+
+
+def school_name_matches(result_school_name: str, wanted_school_names: list[str]) -> bool:
+    result_key = normalize_school_key(result_school_name)
+    if not wanted_school_names:
+        return True
+    for wanted in wanted_school_names:
+        wanted_key = normalize_school_key(wanted)
+        if wanted_key and (wanted_key in result_key or result_key in wanted_key):
+            return True
+    return False
+
+
 def normalize_date(value: str) -> str:
     text = clean_text(value)
     match = re.search(r"(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})", text)
@@ -190,7 +250,7 @@ def dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-def extract_detail_candidates(html_text: str, wanted_school: str, wanted_month: str) -> list[dict[str, str]]:
+def extract_detail_candidates(html_text: str, wanted_school_names: list[str], wanted_month: str) -> list[dict[str, str]]:
     pattern = re.compile(
         r"fncDetailList\(\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*\)",
         re.IGNORECASE,
@@ -201,7 +261,7 @@ def extract_detail_candidates(html_text: str, wanted_school: str, wanted_month: 
         month = normalize_month(stdr_month)
         if wanted_month and month != wanted_month:
             continue
-        if wanted_school and wanted_school not in school_name:
+        if not school_name_matches(school_name, wanted_school_names):
             continue
         candidates.append(
             {
@@ -307,28 +367,36 @@ def collect_sen_budget_rows(school_name: str, base_month: str) -> dict[str, Any]
 
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
     detail_candidate: dict[str, str] | None = None
-    tried_list_pages: list[int] = []
+    detail_search_keyword = school_name
+    school_search_candidates = make_school_search_candidates(school_name)
+    tried_list_pages: list[dict[str, Any]] = []
 
     # 학교명 검색 결과에서 원하는 기준월의 fncDetailList(...)를 찾는다.
-    for page_index in range(1, 16):
-        tried_list_pages.append(page_index)
-        list_html = post_form(opener, LIST_URL, make_list_payload(school_name, page_index), referer=LIST_URL)
-        candidates = extract_detail_candidates(list_html, school_name, wanted_month)
-        if candidates:
-            detail_candidate = candidates[0]
-            break
-        # 검색 결과가 사실상 없으면 더 돌지 않는다.
-        if "fncDetailList" not in list_html and page_index >= 3:
+    # 줄임말 입력도 지원한다. 예: 무학여고 -> 무학여자고등학교
+    for search_keyword in school_search_candidates:
+        for page_index in range(1, 16):
+            tried_list_pages.append({"keyword": search_keyword, "pageIndex": page_index})
+            list_html = post_form(opener, LIST_URL, make_list_payload(search_keyword, page_index), referer=LIST_URL)
+            candidates = extract_detail_candidates(list_html, school_search_candidates, wanted_month)
+            if candidates:
+                detail_candidate = candidates[0]
+                detail_search_keyword = search_keyword
+                break
+            # 검색 결과가 사실상 없으면 더 돌지 않는다.
+            if "fncDetailList" not in list_html and page_index >= 3:
+                break
+        if detail_candidate:
             break
 
     if not detail_candidate:
-        raise LookupError(f"{school_name} / {wanted_month} 목록에서 상세보기 정보를 찾지 못했습니다.")
+        tried_text = ", ".join(school_search_candidates)
+        raise LookupError(f"{school_name} / {wanted_month} 목록에서 상세보기 정보를 찾지 못했습니다. 검색어 후보: {tried_text}")
 
     all_rows: list[dict[str, Any]] = []
     page_count = 1
     page_debug: list[dict[str, Any]] = []
 
-    first_html = post_form(opener, DETAIL_URL, make_detail_payload(detail_candidate, school_name, 1), referer=LIST_URL)
+    first_html = post_form(opener, DETAIL_URL, make_detail_payload(detail_candidate, detail_search_keyword, 1), referer=LIST_URL)
     first_rows = extract_detail_rows(first_html)
     page_count = extract_page_count(first_html, len(first_rows))
     page_debug.append({"detPageIndex": 1, "rows": len(first_rows)})
@@ -336,7 +404,7 @@ def collect_sen_budget_rows(school_name: str, base_month: str) -> dict[str, Any]
 
     # 상세 페이지는 pageIndex가 아니라 detPageIndex로 넘겨야 한다.
     for det_page in range(2, min(page_count, 30) + 1):
-        detail_html = post_form(opener, DETAIL_URL, make_detail_payload(detail_candidate, school_name, det_page), referer=DETAIL_URL)
+        detail_html = post_form(opener, DETAIL_URL, make_detail_payload(detail_candidate, detail_search_keyword, det_page), referer=DETAIL_URL)
         page_rows = extract_detail_rows(detail_html)
         page_debug.append({"detPageIndex": det_page, "rows": len(page_rows)})
         all_rows.extend(page_rows)
@@ -352,6 +420,8 @@ def collect_sen_budget_rows(school_name: str, base_month: str) -> dict[str, Any]
         "detail": detail_candidate,
         "rows": rows,
         "debug": {
+            "schoolSearchCandidates": school_search_candidates,
+            "schoolSearchKeyword": detail_search_keyword,
             "listPagesTried": tried_list_pages,
             "detailPages": page_debug,
             "pageCount": page_count,
