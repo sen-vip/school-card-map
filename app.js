@@ -1678,24 +1678,37 @@ function normalizeSearchQuery(value) {
 }
 
 function makePlaceSearchNames(place) {
+  // v1.2.5: 카드 승인내역에는 운영사명, 법인명, 슬래시 지역 힌트가 섞여 들어오는 경우가 많습니다.
+  // 검색 후보를 여러 갈래로 만들어 카카오 장소검색이 실제 상호를 더 잘 찾게 합니다.
   const original = cleanCell(place);
-  const variants = [original];
-  const noCorp = original
-    .replace(/주식회사/g, "")
-    .replace(/유한회사|농업회사법인|재단법인|사단법인/g, "")
-    .replace(/\(주\)|㈜/g, "")
-    .trim();
-  const spaced = noCorp
-    .replace(/[()]/g, " ")
-    .replace(/[&·]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const noBranchParen = noCorp.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
+  const variants = [];
+  const push = (value) => {
+    const cleaned = normalizeSearchQuery(String(value || "")
+      .replace(/[&·]/g, " ")
+      .replace(/[()]/g, " "));
+    if (cleaned && !variants.includes(cleaned)) variants.push(cleaned);
+  };
 
-  [noCorp, spaced, noBranchParen].forEach((item) => {
-    if (item && !variants.includes(item)) variants.push(item);
+  const sources = uniqueValues([
+    original,
+    ...extractCorporateTailCandidates(original),
+    stripCorporateWords(original),
+    original.replace(/[()]/g, " "),
+  ]);
+
+  sources.forEach((source) => {
+    push(source);
+    makeSlashAwareSearchVariants(source).forEach(push);
+    makeBranchSuffixVariants(source).forEach(push);
   });
-  return variants;
+
+  // 법인명 뒤에 붙은 실제 상호는 가장 중요한 후보라 뒤에 한 번 더 넣습니다.
+  extractCorporateTailCandidates(original).forEach((tail) => {
+    push(tail);
+    makeBranchSuffixVariants(tail).forEach(push);
+  });
+
+  return uniqueValues(variants);
 }
 
 function makeBranchFirstSearchNames(place) {
@@ -1703,22 +1716,88 @@ function makeBranchFirstSearchNames(place) {
   const names = [];
   const push = (value) => {
     const cleaned = normalizeSearchQuery(String(value || "")
-      .replace(/주식회사/g, "")
-      .replace(/유한회사|농업회사법인|재단법인|사단법인/g, "")
-      .replace(/\(주\)|㈜/g, "")
-      .replace(/[&·]/g, " "));
+      .replace(/[&·]/g, " ")
+      .replace(/[()]/g, " "));
     if (cleaned && !names.includes(cleaned)) names.push(cleaned);
   };
 
-  push(original);
-  push(original.replace(/[()]/g, " "));
+  makePlaceSearchNames(original).forEach(push);
 
   const parenTokens = Array.from(original.matchAll(/\(([^)]{2,})\)/g)).map((match) => match[1].trim()).filter(Boolean);
   const baseWithoutParen = original.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
   parenTokens.forEach((token) => push(`${baseWithoutParen} ${token}`));
 
-  makePlaceSearchNames(original).forEach(push);
   return uniqueValues(names);
+}
+
+function stripCorporateWords(value) {
+  return normalizeSearchQuery(String(value || "")
+    .replace(/주식회사|유한회사|농업회사법인|재단법인|사단법인|학교법인|사회적협동조합/g, " ")
+    .replace(/\(주\)|㈜|주\)/g, " ")
+    .replace(/[&·]/g, " ")
+    .replace(/[()]/g, " "));
+}
+
+function extractCorporateTailCandidates(value) {
+  const text = cleanCell(value);
+  const candidates = [];
+  const add = (candidate) => {
+    const cleaned = stripCorporateWords(candidate);
+    if (cleaned && cleaned.length >= 2 && !candidates.includes(cleaned)) candidates.push(cleaned);
+  };
+
+  [
+    /\(주\)\s*([^()]{2,})$/,
+    /㈜\s*([^()]{2,})$/,
+    /주식회사\s*([^()]{2,})$/,
+    /유한회사\s*([^()]{2,})$/,
+    /농업회사법인\s*([^()]{2,})$/,
+    /재단법인\s*([^()]{2,})$/,
+    /사단법인\s*([^()]{2,})$/,
+  ].forEach((pattern) => {
+    const match = text.match(pattern);
+    if (match?.[1]) add(match[1]);
+  });
+
+  // 예: 더이룸푸드(주)정담은보쌈 → 정담은보쌈
+  const inlineCorp = text.match(/(?:\(주\)|㈜|주식회사|유한회사|농업회사법인|재단법인|사단법인)\s*([가-힣A-Za-z0-9][^()]{1,})$/);
+  if (inlineCorp?.[1]) add(inlineCorp[1]);
+
+  return candidates;
+}
+
+function makeSlashAwareSearchVariants(value) {
+  const text = normalizeSearchQuery(value);
+  if (!/[\/|]/.test(text)) return [];
+  const parts = text.split(/[\/|]/).map((part) => normalizeSearchQuery(part)).filter(Boolean);
+  if (!parts.length) return [];
+  const variants = [];
+  const add = (item) => {
+    const cleaned = normalizeSearchQuery(item);
+    if (cleaned && !variants.includes(cleaned)) variants.push(cleaned);
+  };
+  const base = parts[0];
+  add(base);
+  makeBranchSuffixVariants(base).forEach(add);
+  parts.slice(1).forEach((token) => {
+    add(`${base} ${token}`);
+    makeBranchSuffixVariants(base).forEach((baseVariant) => add(`${baseVariant} ${token}`));
+  });
+  return variants;
+}
+
+function makeBranchSuffixVariants(value) {
+  const text = normalizeSearchQuery(value);
+  const variants = [];
+  const add = (item) => {
+    const cleaned = normalizeSearchQuery(item);
+    if (cleaned && cleaned !== text && !variants.includes(cleaned)) variants.push(cleaned);
+  };
+  add(text.replace(/직영점/g, "점"));
+  add(text.replace(/직영점|본점|지점|분점|대리점/g, "점"));
+  add(text.replace(/직영점|본점|지점|분점|대리점/g, ""));
+  add(text.replace(/([가-힣A-Za-z0-9]+)점\b/g, "$1"));
+  return variants;
 }
 
 async function tryQueries(places, queries, areaHint = "", originalName = "") {
@@ -1754,7 +1833,9 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   const hasBranchInfo = hasExplicitBranchInfo(originalName);
   const branchMatched = hasBranchTokenMatch(originalName, item.place_name || "");
   const mainStoreMatched = hasMainStoreNameMatch(originalName, item.place_name || "");
-  const strongBranchMatch = hasBranchInfo && branchMatched && mainStoreMatched;
+  const coreStoreMatched = hasStoreCoreNameMatch(originalName, item.place_name || "");
+  const addressHintMatched = hasAddressHintMatch(originalName, address);
+  const strongBranchMatch = hasBranchInfo && branchMatched && (mainStoreMatched || coreStoreMatched);
   const isSeoulResult = address.includes("서울");
   let score = 0;
   const reasons = [];
@@ -1791,11 +1872,11 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
         nameScore = 26;
         reasons.push("장소명 핵심 단어 일부 일치");
       } else if (overlap === 1) {
-        nameScore = 13;
-        reasons.push("장소명 일부만 일치");
+        nameScore = coreStoreMatched ? 30 : 13;
+        reasons.push(coreStoreMatched ? "법인명 제외 상호 일치" : "장소명 일부만 일치");
       } else {
-        nameScore = strongBranchMatch ? 8 : -38;
-        reasons.push(strongBranchMatch ? "상호와 지점명 기준으로 보정" : "장소명 유사도 낮음");
+        nameScore = strongBranchMatch || coreStoreMatched ? 18 : -38;
+        reasons.push(strongBranchMatch || coreStoreMatched ? "정제한 상호명 기준으로 보정" : "장소명 유사도 낮음");
       }
     }
   }
@@ -1804,12 +1885,20 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   if (strongBranchMatch) {
     score += 38;
     reasons.push("상호와 지점명 일치");
+  } else if (coreStoreMatched) {
+    score += 26;
+    reasons.push("법인명/운영사명 제외 상호 일치");
   } else if (hasBranchInfo && branchMatched) {
     score += 24;
     reasons.push("지점명 일치");
   } else if (hasBranchInfo) {
-    score -= 16;
+    score -= 14;
     reasons.push("지점명 확인 필요");
+  }
+
+  if (addressHintMatched) {
+    score += 12;
+    reasons.push("사용처명 지역 힌트와 주소 일치");
   }
 
   if (isCommonStoreName(originalName) && !hasBranchInfo && !(district && address.includes(district))) {
@@ -1830,10 +1919,12 @@ function calculatePlaceConfidence(originalName, item, areaHint = "", query = "",
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  // 상호+지점명이 맞는 서울 결과는 사용자가 다시 고르지 않도록 바로 표시 완료 처리합니다.
-  if (strongBranchMatch && isSeoulResult) score = Math.max(score, 88);
-  const mappedThreshold = hasBranchInfo && branchMatched && isSeoulResult ? 62 : 70;
-  const status = strongBranchMatch && isSeoulResult ? "mapped" : score >= mappedThreshold ? "mapped" : "needs_review";
+  // v1.2.5: 상호+지점명이 맞거나, 법인명 제거 후 실제 상호가 맞는 서울 결과는 바로 표시 완료 처리합니다.
+  if (strongBranchMatch && isSeoulResult) score = Math.max(score, 90);
+  if (coreStoreMatched && isSeoulResult && (district && address.includes(district) || addressHintMatched || !hasBranchInfo)) score = Math.max(score, 82);
+  const mappedThreshold = hasBranchInfo && branchMatched && isSeoulResult ? 60 : coreStoreMatched && isSeoulResult ? 68 : 70;
+  const autoMapped = isSeoulResult && (strongBranchMatch || (coreStoreMatched && score >= 78));
+  const status = autoMapped ? "mapped" : score >= mappedThreshold ? "mapped" : "needs_review";
   const reviewReason = makeReviewReason(status, reasons, item, areaHint, score);
   return {
     ...item,
@@ -1886,8 +1977,9 @@ function countTokenOverlap(aTokens, bTokens) {
 
 function getBranchTokens(value) {
   const text = String(value || "")
-    .replace(/주식회사|유한회사|농업회사법인|재단법인|사단법인|\(주\)|㈜/g, " ")
-    .replace(/[\[\]{}·.,_\-\/&+]/g, " ")
+    .replace(/주식회사|유한회사|농업회사법인|재단법인|사단법인|학교법인|사회적협동조합/g, " ")
+    .replace(/\(주\)|㈜|주\)/g, " ")
+    .replace(/[\[\]{}·.,_\-&+]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   const tokens = [];
@@ -1896,21 +1988,71 @@ function getBranchTokens(value) {
       .replace(/[^가-힣A-Za-z0-9]/g, "")
       .trim()
       .toLowerCase();
-    if (cleaned.length >= 2 && !tokens.includes(cleaned)) tokens.push(cleaned);
+    const branchCore = normalizeBranchToken(cleaned);
+    [cleaned, branchCore].forEach((candidate) => {
+      if (candidate.length >= 2 && !tokens.includes(candidate)) tokens.push(candidate);
+    });
   };
 
   Array.from(text.matchAll(/\(([^)]{2,})\)/g)).forEach((match) => add(match[1]));
-  Array.from(text.matchAll(/([가-힣A-Za-z0-9]+(?:점|본점|지점|호점|몰점|역점))/g)).forEach((match) => add(match[1]));
+  Array.from(text.matchAll(/([가-힣A-Za-z0-9]+(?:직영점|점|본점|지점|호점|몰점|역점))/g)).forEach((match) => add(match[1]));
 
-  const splitTokens = text.replace(/[()]/g, " ").split(" ").map((token) => token.trim()).filter(Boolean);
+  const splitTokens = text.replace(/[()\/|]/g, " ").split(" ").map((token) => token.trim()).filter(Boolean);
   if (splitTokens.length >= 2) {
     splitTokens.slice(1).forEach((token) => {
-      if (/점|본점|지점|호점|역점|몰점|동|가|로|길|역|구|읍|면|리|타워|몰|센터|점$/.test(token) || token.length >= 3) {
+      if (/직영점|점|본점|지점|호점|역점|몰점|동|가|로|길|역|구|읍|면|리|타워|몰|센터$/.test(token) || token.length >= 3) {
         add(token);
       }
     });
   }
   return tokens;
+}
+
+function normalizeBranchToken(value) {
+  return String(value || "")
+    .replace(/직영점|본점|지점|분점|대리점|호점|몰점|역점/g, "")
+    .replace(/점$/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function getAddressHintTokens(value) {
+  const text = String(value || "");
+  const tokens = [];
+  const add = (token) => {
+    const cleaned = normalizeBranchToken(String(token || "").replace(/[^가-힣A-Za-z0-9]/g, ""));
+    if (cleaned.length >= 2 && !tokens.includes(cleaned)) tokens.push(cleaned);
+  };
+  text.split(/[\/|]/).slice(1).forEach(add);
+  Array.from(text.matchAll(/([가-힣A-Za-z0-9]+(?:로|길|동|가|구|역))/g)).forEach((match) => add(match[1]));
+  return tokens;
+}
+
+function hasAddressHintMatch(originalName, address) {
+  const normalizedAddress = normalizeComparablePlaceName(address);
+  return getAddressHintTokens(originalName).some((token) => normalizedAddress.includes(normalizeComparablePlaceName(token)));
+}
+
+function getStoreCoreCandidates(value) {
+  const original = cleanCell(value);
+  const candidates = [];
+  const add = (candidate) => {
+    const cleaned = stripCorporateWords(candidate);
+    if (cleaned && normalizeComparablePlaceName(cleaned).length >= 2 && !candidates.includes(cleaned)) candidates.push(cleaned);
+  };
+  extractCorporateTailCandidates(original).forEach(add);
+  makeSlashAwareSearchVariants(stripCorporateWords(original)).forEach(add);
+  const noSlash = stripCorporateWords(original).split(/[\/|]/)[0];
+  add(noSlash);
+  return candidates;
+}
+
+function hasStoreCoreNameMatch(originalName, placeName) {
+  const placeNorm = normalizeComparablePlaceName(placeName);
+  return getStoreCoreCandidates(originalName).some((candidate) => {
+    const candidateNorm = normalizeComparablePlaceName(candidate);
+    return candidateNorm.length >= 2 && (placeNorm.includes(candidateNorm) || candidateNorm.includes(placeNorm));
+  });
 }
 
 function hasExplicitBranchInfo(originalName) {
