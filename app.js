@@ -57,6 +57,8 @@ const state = {
   schoolRegionSchool: "",
   workflowRunning: false,
   schoolCheckTimer: null,
+  manualEditPlaceKey: "",
+  manualSearchCandidates: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -95,6 +97,14 @@ const elements = {
   nextActionDesc: $("#nextActionDesc"),
   ctaMapBtn: $("#ctaMapBtn"),
   workflowSteps: $("#workflowSteps"),
+  manualCount: $("#manualCount"),
+  failedCount: $("#failedCount"),
+  locationModal: $("#locationModal"),
+  locationModalTitle: $("#locationModalTitle"),
+  locationSearchInput: $("#locationSearchInput"),
+  locationCandidateList: $("#locationCandidateList"),
+  locationSearchBtn: $("#locationSearchBtn"),
+  locationCloseBtn: $("#locationCloseBtn"),
 };
 
 init();
@@ -127,6 +137,15 @@ function init() {
   elements.fitMapBtn.addEventListener("click", fitMapToMarkers);
   elements.tableWrap.addEventListener("click", handleTableClick);
   document.addEventListener("click", handleInfoWindowClose);
+  elements.locationSearchBtn?.addEventListener("click", searchManualLocationCandidates);
+  elements.locationCloseBtn?.addEventListener("click", closeLocationEditor);
+  elements.locationModal?.addEventListener("click", handleLocationModalClick);
+  elements.locationSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchManualLocationCandidates();
+    }
+  });
 
   [elements.kakaoKey, elements.schoolName, elements.areaHint, elements.baseMonth, elements.senSourceUrl, elements.senProxyUrl].filter(Boolean).forEach((input) => {
     input.addEventListener("change", saveSettings);
@@ -243,13 +262,17 @@ function updateNextAction(mode = state.mode) {
   const baseMonth = formatDisplayMonth(elements.baseMonth.value.trim());
   const targetAmount = state.visibleRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const excludedAmount = state.excludedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const mappedRows = getMappedRows();
-  const mappedAmount = mappedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
+  const mappedRows = getAutoMappedRows();
+  const displayedRows = getDisplayedRows();
+  const mappedAmount = displayedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
 
   if (mode === "mapped") {
     elements.nextActionBadge.textContent = "지도 생성 완료";
     elements.nextActionTitle.textContent = `${schoolName} ${baseMonth} 사용처 지도를 만들었습니다.`;
-    elements.nextActionDesc.textContent = `표시 완료 ${mappedRows.length}건 · ${formatWon(mappedAmount)}, 위치 확인 필요 ${state.pendingRows.length}건입니다. 자료가 바뀌면 지도를 다시 만들 수 있습니다.`;
+    const reviewCount = getReviewRows().length;
+    const failedCount = getFailedRows().length;
+    const manualCount = getManualRows().length;
+    elements.nextActionDesc.textContent = `표시 완료 ${mappedRows.length}건 · ${formatWon(mappedAmount)}, 수동 확인 ${manualCount}건, 확인 필요 ${reviewCount}건, 검색 실패 ${failedCount}건입니다. 자료가 바뀌면 지도를 다시 만들 수 있습니다.`;
     elements.ctaMapBtn.innerHTML = `<small>다시</small> 사용처 지도 다시 만들기`;
     elements.nextActionPanel.classList.add("complete");
   } else {
@@ -292,6 +315,8 @@ function clearAll() {
   state.excludedRows = [];
   state.pendingRows = [];
   state.groupedPlaces = [];
+  state.manualEditPlaceKey = "";
+  state.manualSearchCandidates = [];
   state.mode = "empty";
   state.currentTab = "target";
   clearMarkers();
@@ -363,10 +388,12 @@ async function run({ withMap, skipResolveRegion = false }) {
     renderSummary();
     renderTable();
     updateNextAction("mapped");
-    const mappedGroups = getMappedGroups();
-    const message = state.pendingRows.length
-      ? `지도 생성이 완료되었습니다. 표시 완료 ${mappedGroups.length}곳, 위치 확인 필요 ${state.pendingRows.length}건입니다.`
-      : `지도 생성이 완료되었습니다. 표시 완료 ${mappedGroups.length}곳입니다.`;
+    const mappedGroups = getDisplayGroups();
+    const reviewGroups = getReviewGroups();
+    const failedGroups = getFailedGroups();
+    const message = reviewGroups.length || failedGroups.length
+      ? `지도 생성이 완료되었습니다. 표시 완료 ${mappedGroups.length}곳, 확인 필요 ${reviewGroups.length}곳, 검색 실패 ${failedGroups.length}곳입니다. 확인 필요 항목은 위치 수정으로 직접 고를 수 있습니다.`
+      : `지도 생성이 완료되었습니다. 모든 위치가 정상 확인되었습니다. 표시 완료 ${mappedGroups.length}곳입니다.`;
     setStatus(message);
   } catch (error) {
     console.error(error);
@@ -861,7 +888,8 @@ function renderTabs() {
   const tabs = state.mode === "mapped"
     ? [
         ["mapped", "표시 완료"],
-        ["pending", "위치 확인"],
+        ["review", "확인 필요"],
+        ["failed", "검색 실패"],
         ["excluded", "지도 제외"],
       ]
     : [
@@ -876,7 +904,7 @@ function renderTabs() {
   ).join("");
 
   if (state.mode === "mapped") {
-    elements.tableHint.textContent = "표시 완료 행을 누르면 지도에서 해당 사용처로 이동합니다.";
+    elements.tableHint.textContent = "표시 완료 행은 지도 이동, 확인 필요/검색 실패 행은 위치 수정을 할 수 있습니다.";
   } else if (state.mode === "parsed") {
     elements.tableHint.textContent = "자료 확인 상태입니다. 위의 [사용처 지도 만들기] 버튼으로 지도까지 한 번에 만들 수 있습니다.";
   } else {
@@ -897,34 +925,78 @@ function setMapNotice(show) {
 function renderSummary() {
   const totalAmount = state.rawRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const targetAmount = state.visibleRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const mappedRows = getMappedRows();
-  const mappedAmount = mappedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
+  const mappedRows = getAutoMappedRows();
+  const manualRows = getManualRows();
+  const reviewRows = getReviewRows();
+  const failedRows = getFailedRows();
+  const displayedRows = getDisplayedRows();
+  const displayedAmount = displayedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
+  const mappedAmountOnly = mappedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const excludedAmount = state.excludedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const hasSearchedMap = state.mode === "mapped";
 
   $("#totalCount").textContent = `${state.rawRows.length}`;
   $("#totalAmount").textContent = formatWon(totalAmount);
   $("#targetCount").textContent = `${state.visibleRows.length}건 · ${formatWon(targetAmount)}`;
-  $("#mappedCount").textContent = hasSearchedMap ? `${mappedRows.length}건 · ${formatWon(mappedAmount)}` : "검색 전";
-  $("#pendingCount").textContent = hasSearchedMap ? `${state.pendingRows.length}건` : "검색 전";
+  $("#mappedCount").textContent = hasSearchedMap ? `${mappedRows.length}건 · ${formatWon(mappedAmountOnly)}` : "검색 전";
+  if (elements.manualCount) elements.manualCount.textContent = hasSearchedMap ? `${manualRows.length}건` : "검색 전";
+  $("#pendingCount").textContent = hasSearchedMap ? `${reviewRows.length}건` : "검색 전";
+  if (elements.failedCount) elements.failedCount.textContent = hasSearchedMap ? `${failedRows.length}건` : "검색 전";
   $("#excludedCount").textContent = `${state.excludedRows.length}건 · ${formatWon(excludedAmount)}`;
 
-  const mappedCard = $("#mappedCount")?.closest(".summary-card");
-  const pendingCard = $("#pendingCount")?.closest(".summary-card");
-  mappedCard?.classList.toggle("search-before", !hasSearchedMap);
-  pendingCard?.classList.toggle("search-before", !hasSearchedMap);
+  const cards = ["#mappedCount", "#manualCount", "#pendingCount", "#failedCount"]
+    .map((selector) => $(selector)?.closest(".summary-card"))
+    .filter(Boolean);
+  cards.forEach((card) => card.classList.toggle("search-before", !hasSearchedMap));
 }
 
 function getGroupForRow(row) {
   return state.groupedPlaces.find((item) => item.key === row.placeKey);
 }
 
+function getRowsByGroupStatus(statuses) {
+  const allowed = Array.isArray(statuses) ? statuses : [statuses];
+  return state.visibleRows.filter((row) => allowed.includes(getGroupForRow(row)?.status));
+}
+
+function getAutoMappedRows() {
+  return getRowsByGroupStatus("mapped");
+}
+
+function getManualRows() {
+  return getRowsByGroupStatus("manual");
+}
+
+function getDisplayedRows() {
+  return getRowsByGroupStatus(["mapped", "manual"]);
+}
+
+function getReviewRows() {
+  return getRowsByGroupStatus("needs_review");
+}
+
+function getFailedRows() {
+  return getRowsByGroupStatus("failed");
+}
+
 function getMappedRows() {
-  return state.visibleRows.filter((row) => getGroupForRow(row)?.status === "mapped");
+  return getDisplayedRows();
 }
 
 function getMappedGroups() {
-  return state.groupedPlaces.filter((group) => group.status === "mapped");
+  return state.groupedPlaces.filter((group) => ["mapped", "manual", "needs_review"].includes(group.status) && Number.isFinite(group.lat) && Number.isFinite(group.lng));
+}
+
+function getDisplayGroups() {
+  return state.groupedPlaces.filter((group) => ["mapped", "manual"].includes(group.status));
+}
+
+function getReviewGroups() {
+  return state.groupedPlaces.filter((group) => group.status === "needs_review");
+}
+
+function getFailedGroups() {
+  return state.groupedPlaces.filter((group) => group.status === "failed");
 }
 
 function renderTable() {
@@ -935,15 +1007,19 @@ function renderTable() {
 
   if (state.mode === "mapped") {
     if (tab === "mapped") {
-      rows = getMappedRows();
+      rows = getDisplayedRows();
       columns = ["집행일자", "집행장소", "집행금액", "집행목적", "지도상태"];
       colGroup = renderColGroup();
     } else if (tab === "excluded") {
       rows = state.excludedRows;
       columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
       colGroup = renderColGroup();
+    } else if (tab === "failed") {
+      rows = getFailedRows();
+      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "검색 결과"];
+      colGroup = renderColGroup();
     } else {
-      rows = state.pendingRows;
+      rows = getReviewRows();
       columns = ["집행일자", "집행장소", "집행금액", "집행목적", "확인내용"];
       colGroup = renderColGroup();
     }
@@ -966,7 +1042,9 @@ function renderTable() {
   if (!rows.length) {
     let message = "해당 내역이 없습니다.";
     if (!state.rawRows.length) message = "아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 사용처 지도 만들기를 눌러주세요.";
-    else if (state.mode === "mapped" && tab === "mapped") message = "아직 표시 완료된 장소가 없습니다. 위치 확인 내역을 확인해 주세요.";
+    else if (state.mode === "mapped" && tab === "mapped") message = "아직 표시 완료된 장소가 없습니다. 확인 필요 또는 검색 실패 내역을 확인해 주세요.";
+    else if (state.mode === "mapped" && tab === "review") message = "확인 필요한 장소가 없습니다.";
+    else if (state.mode === "mapped" && tab === "failed") message = "검색 실패한 장소가 없습니다.";
     elements.tableWrap.className = "table-wrap empty-state";
     elements.tableWrap.innerHTML = `<p>${escapeHtml(message)}</p>`;
     return;
@@ -975,9 +1053,10 @@ function renderTable() {
   elements.tableWrap.className = "table-wrap";
   const body = rows.map((row) => {
     const group = getGroupForRow(row);
-    const canJump = state.mode === "mapped" && tab === "mapped" && group?.status === "mapped";
+    const canJump = state.mode === "mapped" && ["mapped", "manual", "needs_review"].includes(group?.status) && group?.marker;
     const status = getRowStatus(row, tab);
-    return `<tr class="${canJump ? "map-row" : ""}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
+    const rowClass = [canJump ? "map-row" : "", getRowToneClass(group, tab)].filter(Boolean).join(" ");
+    return `<tr class="${rowClass}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
       <td>${escapeHtml(row.date)}</td>
       <td><strong>${escapeHtml(row.place)}</strong></td>
       <td class="amount">${formatWon(row.amount)}</td>
@@ -1003,6 +1082,13 @@ function renderColGroup() {
   </colgroup>`;
 }
 
+function getRowToneClass(group, tab) {
+  if (tab === "review" || group?.status === "needs_review") return "row-review";
+  if (tab === "failed" || group?.status === "failed") return "row-failed";
+  if (group?.status === "manual") return "row-manual";
+  return "";
+}
+
 function getRowStatus(row, tab) {
   if (state.mode !== "mapped") {
     if (tab === "target") return "지도 대상";
@@ -1010,22 +1096,40 @@ function getRowStatus(row, tab) {
     return row.excludeReason || "지도 대상";
   }
 
-  if (tab === "mapped") return "표시 완료";
+  const group = getGroupForRow(row);
+  if (tab === "mapped") {
+    if (group?.status === "manual") return "수동 확인 완료";
+    if (group?.status === "needs_review") return "확인 필요";
+    return "표시 완료";
+  }
   if (tab === "excluded") return row.excludeReason;
-  return row.locationStatus || "장소 검색 실패";
+  if (tab === "failed") return group?.reviewReason || "장소 검색 결과가 없습니다.";
+  return group?.reviewReason || row.locationStatus || "위치 확인 필요";
 }
 
 function renderStatusBadge(text, tab, canJump = false, placeKey = "") {
   let className = "";
   if (tab === "excluded") className = "gray";
-  if (tab === "pending") className = "warn";
+  if (tab === "review") className = "warn";
+  if (tab === "failed") className = "danger";
 
-  if (canJump) {
-    const group = state.groupedPlaces.find((item) => item.key === placeKey);
-    const candidateText = group?.candidateCount > 1 ? ` · 후보 ${group.candidateCount}개` : "";
-    const candidateTitle = group?.candidateCount > 1 ? `후보 ${group.candidateCount}개 중 선택됨` : "지도에 표시 완료";
-    return `<span class="badge" title="${escapeHtml(candidateTitle)}">표시 완료${escapeHtml(candidateText)}</span>`;
+  const group = state.groupedPlaces.find((item) => item.key === placeKey);
+  if (canJump && group) {
+    const statusClass = group.status === "manual" ? "manual" : group.status === "needs_review" ? "warn" : "";
+    const label = group.status === "manual" ? "수동 확인 완료" : group.status === "needs_review" ? "확인 필요" : "표시 완료";
+    const candidateText = group.candidateCount > 1 ? ` · 후보 ${group.candidateCount}개` : "";
+    const scoreText = Number.isFinite(group.confidenceScore) ? ` · ${group.confidenceScore}점` : "";
+    const title = group.reviewReason || group.address || label;
+    const action = group.status === "needs_review"
+      ? `<button type="button" class="mini-action" data-edit-place-key="${escapeHtml(placeKey)}">위치 수정</button>`
+      : `<button type="button" class="mini-action ghost" data-edit-place-key="${escapeHtml(placeKey)}">다른 위치 찾기</button>`;
+    return `<div class="status-stack"><span class="badge ${statusClass}" title="${escapeHtml(title)}">${label}${escapeHtml(candidateText)}${escapeHtml(scoreText)}</span><small>${escapeHtml(group.placeName || group.address || title)}</small>${action}</div>`;
   }
+
+  if (tab === "failed" && group) {
+    return `<div class="status-stack"><span class="badge danger">검색 실패</span><small>${escapeHtml(text || "검색 결과 없음")}</small><button type="button" class="mini-action" data-edit-place-key="${escapeHtml(placeKey || group.key)}">위치 수정</button></div>`;
+  }
+
   return `<span class="badge ${className}">${escapeHtml(text || "-")}</span>`;
 }
 
@@ -1049,6 +1153,14 @@ function closeInfoWindow(placeKey) {
 }
 
 function handleTableClick(event) {
+  const editButton = event.target.closest("[data-edit-place-key]");
+  if (editButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    openLocationEditor(editButton.dataset.editPlaceKey);
+    return;
+  }
+
   const target = event.target.closest("[data-place-key]");
   if (!target) return;
   const placeKey = target.dataset.placeKey;
@@ -1056,7 +1168,7 @@ function handleTableClick(event) {
 }
 
 function focusPlaceOnMap(placeKey) {
-  const group = state.groupedPlaces.find((item) => item.key === placeKey && item.status === "mapped");
+  const group = state.groupedPlaces.find((item) => item.key === placeKey && ["mapped", "manual", "needs_review"].includes(item.status));
   if (!group || !state.map || !group.marker) return;
 
   state.infowindows.forEach((item) => item.close());
@@ -1086,6 +1198,144 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function openLocationEditor(placeKey) {
+  const group = state.groupedPlaces.find((item) => item.key === placeKey);
+  if (!group || !elements.locationModal) return;
+  state.manualEditPlaceKey = placeKey;
+  state.manualSearchCandidates = [];
+  const areaHint = getEffectiveAreaHint();
+  const defaultQuery = normalizeSearchQuery([areaHint, group.place].filter(Boolean).join(" "));
+  elements.locationModalTitle.textContent = `${group.place} 위치 수정`;
+  elements.locationSearchInput.value = defaultQuery;
+  elements.locationCandidateList.innerHTML = `<p class="candidate-empty">검색어를 확인한 뒤 [다시 검색]을 눌러 후보를 선택하세요.</p>`;
+  elements.locationModal.classList.remove("hidden");
+  elements.locationSearchInput.focus();
+}
+
+function closeLocationEditor() {
+  if (!elements.locationModal) return;
+  elements.locationModal.classList.add("hidden");
+  state.manualEditPlaceKey = "";
+  state.manualSearchCandidates = [];
+}
+
+function handleLocationModalClick(event) {
+  if (event.target === elements.locationModal) {
+    closeLocationEditor();
+    return;
+  }
+  const closeButton = event.target.closest("[data-close-location-modal]");
+  if (closeButton) {
+    closeLocationEditor();
+    return;
+  }
+  const useButton = event.target.closest("[data-use-candidate-index]");
+  if (useButton) {
+    const index = Number(useButton.dataset.useCandidateIndex);
+    applyManualCandidate(index);
+  }
+}
+
+async function searchManualLocationCandidates() {
+  const group = state.groupedPlaces.find((item) => item.key === state.manualEditPlaceKey);
+  if (!group || !elements.locationCandidateList) return;
+  const query = elements.locationSearchInput.value.trim();
+  if (!query) {
+    elements.locationCandidateList.innerHTML = `<p class="candidate-empty warn">검색어를 입력해 주세요.</p>`;
+    return;
+  }
+
+  try {
+    elements.locationCandidateList.innerHTML = `<p class="candidate-empty">장소를 다시 검색하는 중입니다...</p>`;
+    await loadKakaoMap(getEffectiveKakaoKey());
+    const places = new kakao.maps.services.Places();
+    const docs = await keywordSearch(places, query);
+    if (!docs.length) {
+      state.manualSearchCandidates = [];
+      elements.locationCandidateList.innerHTML = `<p class="candidate-empty warn">장소 검색 결과가 없습니다. 검색어를 조금 더 구체적으로 입력해 주세요.</p>`;
+      return;
+    }
+    state.manualSearchCandidates = docs
+      .map((doc) => calculatePlaceConfidence(group.place, doc, getEffectiveAreaHint(), query, docs.length))
+      .sort((a, b) => b.confidenceScore - a.confidenceScore)
+      .slice(0, 8);
+    renderManualCandidateList();
+  } catch (error) {
+    console.error(error);
+    elements.locationCandidateList.innerHTML = `<p class="candidate-empty warn">카카오 지도 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>`;
+  }
+}
+
+function renderManualCandidateList() {
+  if (!elements.locationCandidateList) return;
+  if (!state.manualSearchCandidates.length) {
+    elements.locationCandidateList.innerHTML = `<p class="candidate-empty warn">선택할 후보가 없습니다.</p>`;
+    return;
+  }
+  elements.locationCandidateList.innerHTML = state.manualSearchCandidates.map((item, index) => {
+    const address = item.road_address_name || item.address_name || "주소 정보 없음";
+    return `<article class="candidate-card">
+      <div>
+        <strong>${escapeHtml(item.place_name || "이름 없음")}</strong>
+        <span>${escapeHtml(address)}</span>
+        <em>${escapeHtml(item.reviewReason || "")}</em>
+      </div>
+      <button type="button" class="primary-button mini-use" data-use-candidate-index="${index}">이 위치 사용</button>
+    </article>`;
+  }).join("");
+}
+
+function applyManualCandidate(index) {
+  const group = state.groupedPlaces.find((item) => item.key === state.manualEditPlaceKey);
+  const candidate = state.manualSearchCandidates[index];
+  if (!group || !candidate) return;
+  group.lat = Number(candidate.y);
+  group.lng = Number(candidate.x);
+  group.address = candidate.road_address_name || candidate.address_name || "";
+  group.placeName = candidate.place_name || "";
+  group.searchQuery = elements.locationSearchInput.value.trim();
+  group.candidateCount = state.manualSearchCandidates.length;
+  group.confidenceScore = candidate.confidenceScore ?? 0;
+  group.reviewReason = "사용자가 후보 목록에서 직접 선택했습니다.";
+  group.status = "manual";
+  redrawMarkersFromGroups();
+  state.pendingRows = collectPendingRowsFromGroups();
+  state.mode = "mapped";
+  state.currentTab = "mapped";
+  renderTabs();
+  renderSummary();
+  renderTable();
+  updateNextAction("mapped");
+  focusPlaceOnMap(group.key);
+  closeLocationEditor();
+  setStatus(`${group.place} 위치를 수동 확인 완료로 반영했습니다.`);
+}
+
+function collectPendingRowsFromGroups() {
+  const rows = [];
+  state.groupedPlaces.forEach((group) => {
+    if (!["needs_review", "failed"].includes(group.status)) return;
+    group.rows.forEach((row) => rows.push({ ...row, locationStatus: group.reviewReason || "위치 확인 필요" }));
+  });
+  return rows;
+}
+
+function redrawMarkersFromGroups() {
+  state.markers.forEach((marker) => marker.setMap(null));
+  state.infowindows.forEach((infowindow) => infowindow.close());
+  state.markers = [];
+  state.infowindows = [];
+  state.bounds = new kakao.maps.LatLngBounds();
+  state.groupedPlaces.forEach((group) => {
+    group.marker = null;
+    group.infowindow = null;
+    if (["mapped", "manual", "needs_review"].includes(group.status) && Number.isFinite(group.lat) && Number.isFinite(group.lng)) {
+      createMarker(group);
+    }
+  });
+  fitMapToMarkers();
 }
 
 function loadKakaoMap(key) {
@@ -1137,41 +1387,64 @@ async function searchPlacesAndRenderMarkers() {
   for (const group of state.groupedPlaces) {
     setStatus(`위치 검색 중: ${group.place}`);
     const result = await searchPlaceForGroup(places, group);
-    if (result) {
-      group.lat = Number(result.y);
-      group.lng = Number(result.x);
-      group.address = result.road_address_name || result.address_name || "";
-      group.searchQuery = result.searchQuery || "";
-      group.candidateCount = result.candidateCount || 1;
-      group.status = "mapped";
-      createMarker(group);
-    } else {
-      group.status = "pending";
-      for (const row of group.rows) {
-        state.pendingRows.push({ ...row, locationStatus: `장소 검색 실패 · ${getEffectiveAreaHint()} 기준` });
-      }
-    }
+    applyPlaceSearchResult(group, result);
   }
 
   fitMapToMarkers();
 }
 
-function searchPlaceForGroup(places, group) {
+function applyPlaceSearchResult(group, result) {
+  if (!result) {
+    group.status = "failed";
+    group.lat = null;
+    group.lng = null;
+    group.address = "";
+    group.placeName = "";
+    group.searchQuery = "";
+    group.candidateCount = 0;
+    group.confidenceScore = 0;
+    group.reviewReason = `검색 결과 없음 · ${getEffectiveAreaHint()} 기준`;
+    pushRowsToPending(group, group.reviewReason);
+    return;
+  }
+
+  group.lat = Number(result.y);
+  group.lng = Number(result.x);
+  group.address = result.road_address_name || result.address_name || "";
+  group.placeName = result.place_name || "";
+  group.searchQuery = result.searchQuery || "";
+  group.candidateCount = result.candidateCount || 1;
+  group.confidenceScore = result.confidenceScore ?? 0;
+  group.reviewReason = result.reviewReason || "학교 기준 지역과 장소명이 일치합니다.";
+  group.status = result.status || "needs_review";
+
+  if (Number.isFinite(group.lat) && Number.isFinite(group.lng)) createMarker(group);
+  if (["needs_review", "failed"].includes(group.status)) pushRowsToPending(group, group.reviewReason);
+}
+
+function pushRowsToPending(group, message) {
+  for (const row of group.rows) {
+    state.pendingRows.push({ ...row, locationStatus: message });
+  }
+}
+
+async function searchPlaceForGroup(places, group) {
   const schoolName = elements.schoolName.value.trim();
   const areaHint = getEffectiveAreaHint();
   const broadHint = getBroadAreaHint(areaHint);
   const placeQueries = makePlaceSearchNames(group.place);
+  const coreNames = makeCorePlaceNames(group.place);
   const prefixes = uniqueValues([areaHint, broadHint, schoolName, ""]);
   const queries = [];
 
-  for (const place of placeQueries) {
+  for (const place of uniqueValues([...placeQueries, ...coreNames])) {
     for (const prefix of prefixes) {
       const query = normalizeSearchQuery([prefix, place].filter(Boolean).join(" "));
       if (query && !queries.includes(query)) queries.push(query);
     }
   }
 
-  return tryQueries(places, queries, areaHint);
+  return tryQueries(places, queries, areaHint, group.place);
 }
 
 function uniqueValues(values) {
@@ -1416,40 +1689,160 @@ function makePlaceSearchNames(place) {
   return variants;
 }
 
-async function tryQueries(places, queries, areaHint = "") {
+async function tryQueries(places, queries, areaHint = "", originalName = "") {
+  let best = null;
+  let totalCandidates = 0;
+  const seen = new Set();
+
   for (const query of queries) {
     const docs = await keywordSearch(places, query);
-    if (docs.length > 0) {
-      const picked = pickBestPlaceCandidate(docs, areaHint);
-      return { ...picked, candidateCount: docs.length, searchQuery: query };
+    totalCandidates += docs.length;
+    for (const doc of docs) {
+      const dedupeKey = `${doc.id || ""}|${doc.place_name || ""}|${doc.x || ""}|${doc.y || ""}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      const evaluated = calculatePlaceConfidence(originalName, doc, areaHint, query, docs.length);
+      if (!best || evaluated.confidenceScore > best.confidenceScore) best = evaluated;
+    }
+    if (best?.confidenceScore >= 82) break;
+  }
+
+  if (!best) return null;
+  best.candidateCount = totalCandidates || best.candidateCount || 1;
+  return best;
+}
+
+function calculatePlaceConfidence(originalName, item, areaHint = "", query = "", queryCandidateCount = 1) {
+  const address = `${item.road_address_name || ""} ${item.address_name || ""}`.trim();
+  const district = extractDistrict(areaHint);
+  const originalNorm = normalizeComparablePlaceName(originalName);
+  const placeNorm = normalizeComparablePlaceName(item.place_name || "");
+  const originalTokens = makeNameTokens(originalName);
+  const placeTokens = makeNameTokens(item.place_name || "");
+  let score = 0;
+  const reasons = [];
+
+  if (district && address.includes(district)) {
+    score += 40;
+    reasons.push("학교 기준 자치구와 일치");
+  } else if (district && address.includes("서울")) {
+    score -= 25;
+    reasons.push("서울 지역이나 자치구 불일치");
+  }
+
+  if (address.includes("서울")) {
+    score += 20;
+    reasons.push("서울특별시 결과");
+  } else if (address) {
+    score -= 50;
+    reasons.push("서울 외 지역 결과");
+  }
+
+  if (originalNorm && placeNorm) {
+    if (placeNorm === originalNorm) {
+      score += 38;
+      reasons.push("장소명 완전 일치");
+    } else if (placeNorm.includes(originalNorm) || originalNorm.includes(placeNorm)) {
+      score += 30;
+      reasons.push("장소명 대부분 일치");
+    } else {
+      const overlap = countTokenOverlap(originalTokens, placeTokens);
+      if (overlap >= 2) {
+        score += 22;
+        reasons.push("장소명 핵심 단어 일부 일치");
+      } else if (overlap === 1) {
+        score += 12;
+        reasons.push("장소명 일부만 일치");
+      } else {
+        score -= 35;
+        reasons.push("장소명 유사도 낮음");
+      }
     }
   }
-  return null;
-}
 
-function pickBestPlaceCandidate(docs, areaHint) {
-  const normalizedHint = String(areaHint || "").replace(/\s+/g, "");
-  const isSeoulSearch = normalizedHint.includes("서울");
-  const districtMatch = normalizedHint.match(/([가-힣]+구)/);
-  const district = districtMatch ? districtMatch[1] : "";
+  if (hasBranchTokenMatch(originalName, item.place_name || "")) {
+    score += 8;
+    reasons.push("지점명 일치");
+  }
 
-  return [...docs].sort((a, b) => {
-    const scoreA = scorePlaceCandidate(a, { isSeoulSearch, district });
-    const scoreB = scorePlaceCandidate(b, { isSeoulSearch, district });
-    return scoreB - scoreA;
-  })[0];
-}
-
-function scorePlaceCandidate(item, { isSeoulSearch, district }) {
-  const address = `${item.road_address_name || ""} ${item.address_name || ""}`;
-  let score = 0;
-  if (isSeoulSearch && address.includes("서울")) score += 100;
-  if (district && address.includes(district)) score += 80;
-  if (item.category_group_code === "FD6") score += 8;
-  if (item.category_name?.includes("음식점")) score += 6;
+  if (item.category_group_code === "FD6") score += 6;
+  if (item.category_name?.includes("음식점")) score += 5;
   if (item.road_address_name) score += 3;
-  if (isSeoulSearch && address && !address.includes("서울")) score -= 50;
-  return score;
+  if (queryCandidateCount >= 5 && score < 80) {
+    score -= 5;
+    reasons.push("후보가 여러 개 있어 확인 필요");
+  }
+  if (originalNorm.length <= 2) {
+    score -= 12;
+    reasons.push("상호명이 짧아 오탐 가능");
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const status = score >= 70 ? "mapped" : score >= 35 ? "needs_review" : "needs_review";
+  const reviewReason = makeReviewReason(status, reasons, item, areaHint, score);
+  return {
+    ...item,
+    searchQuery: query,
+    confidenceScore: score,
+    status,
+    reviewReason,
+    candidateCount: queryCandidateCount,
+  };
+}
+
+function makeReviewReason(status, reasons, item, areaHint, score) {
+  if (status === "mapped") return reasons.slice(0, 2).join(" · ") || "학교 기준 지역과 장소명이 일치합니다.";
+  const address = item.road_address_name || item.address_name || "";
+  const main = reasons.length ? reasons.join(" · ") : "검색 결과를 확신하기 어렵습니다.";
+  return `${main} · ${score}점 · ${address || areaHint}`;
+}
+
+function extractDistrict(value) {
+  const match = String(value || "").match(/([가-힣]+구)/);
+  return match ? match[1] : "";
+}
+
+function normalizeComparablePlaceName(value) {
+  return String(value || "")
+    .replace(/주식회사|유한회사|농업회사법인|재단법인|사단법인/g, "")
+    .replace(/\(주\)|㈜|주\)/g, "")
+    .replace(/코리아|대한민국/g, "")
+    .replace(/본점|분점|지점|직영점|대리점/g, "")
+    .replace(/[0-9]+호점/g, "")
+    .replace(/[\s()\[\]{}·.,_\-\/&+]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function makeNameTokens(value) {
+  const normalized = String(value || "")
+    .replace(/주식회사|유한회사|\(주\)|㈜/g, " ")
+    .replace(/[()\[\]{}·.,_\-\/&+]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  return normalized.split(" ").map((token) => token.trim()).filter((token) => token.length >= 2);
+}
+
+function countTokenOverlap(aTokens, bTokens) {
+  const b = new Set(bTokens);
+  return aTokens.filter((token) => b.has(token) || [...b].some((other) => other.includes(token) || token.includes(other))).length;
+}
+
+function hasBranchTokenMatch(originalName, placeName) {
+  const branchPattern = /([가-힣A-Za-z0-9]+)(?:점|본점|지점)/g;
+  const original = Array.from(String(originalName || "").matchAll(branchPattern)).map((m) => m[1]);
+  if (!original.length) return false;
+  return original.some((token) => String(placeName || "").includes(token));
+}
+
+function makeCorePlaceNames(place) {
+  const spaced = makePlaceSearchNames(place).join(" ");
+  const tokens = makeNameTokens(spaced).filter((token) => !/서울|특별시|광역시|구$|점$/.test(token));
+  const candidates = [];
+  if (tokens.length) candidates.push(tokens[0]);
+  if (tokens.length >= 2) candidates.push(`${tokens[0]} ${tokens[1]}`);
+  return uniqueValues(candidates);
 }
 
 function keywordSearch(places, query) {
@@ -1474,10 +1867,12 @@ function createMarker(group) {
 
   const details = group.rows.slice(0, 5).map((row) => `<li>${escapeHtml(row.date)} · ${formatWon(row.amount)}</li>`).join("");
   const more = group.rows.length > 5 ? `<li>외 ${group.rows.length - 5}건</li>` : "";
+  const statusLabel = group.status === "manual" ? "수동 확인 완료" : group.status === "needs_review" ? "확인 필요" : "표시 완료";
   const content = `<div class="info-window">
     <button type="button" class="info-close" data-place-key="${escapeHtml(group.key)}" aria-label="정보창 닫기">×</button>
     <strong>${escapeHtml(group.place)}</strong>
-    <div>${group.rows.length}건 · ${formatWon(group.amount)}</div>
+    <div>${escapeHtml(statusLabel)} · ${group.rows.length}건 · ${formatWon(group.amount)}</div>
+    <div>${escapeHtml(group.placeName || "")}</div>
     <div>${escapeHtml(group.address)}</div>
     <ul>${details}${more}</ul>
   </div>`;
