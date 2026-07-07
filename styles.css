@@ -745,6 +745,56 @@ tr.row-manual:hover { background: #ecfdf5; }
   cursor: wait;
   opacity: 0.72;
 }
+
+/* v1.2.13 loading feedback */
+.loading-dots::after,
+.primary-button.is-loading::after {
+  content: "...";
+  display: inline-block;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
+  text-align: left;
+  animation: loading-dot-reveal 1.05s steps(4, end) infinite;
+}
+
+.primary-button.is-loading::after {
+  margin-left: 2px;
+  color: currentColor;
+  font-weight: 900;
+}
+
+.status-text.loading-dots::after,
+.field-status.loading-dots::after {
+  margin-left: 1px;
+  color: currentColor;
+  font-weight: 900;
+}
+
+.workflow-steps li.active::after {
+  content: "...";
+  display: inline-block;
+  width: 0;
+  overflow: hidden;
+  margin-left: 2px;
+  vertical-align: bottom;
+  animation: loading-dot-reveal 1.05s steps(4, end) infinite;
+}
+
+@keyframes loading-dot-reveal {
+  0% { width: 0; }
+  100% { width: 1.4em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-dots::after,
+  .primary-button.is-loading::after,
+  .workflow-steps li.active::after {
+    animation: none;
+    width: 1.4em;
+  }
+}
 .workflow-steps {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

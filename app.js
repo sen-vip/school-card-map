@@ -267,6 +267,23 @@ function getRegionSourceText() {
   return "기본값";
 }
 
+function stripStaticDots(message) {
+  return String(message ?? "").replace(/\s*\.{1,3}$/, "");
+}
+
+function isBusyStatusMessage(message, isError = false) {
+  if (isError) return false;
+  const text = String(message ?? "");
+  return /(확인하는 중|확인 중|가져오는 중|불러오는 중|수집하는 중|정리하는 중|검색 중|위치 검색 중|만드는 중|처리 중|실행 중)/.test(text);
+}
+
+function setLoadingDots(element, isBusy) {
+  if (!element) return;
+  element.classList.toggle("loading-dots", Boolean(isBusy));
+  if (isBusy) element.setAttribute("aria-busy", "true");
+  else element.removeAttribute("aria-busy");
+}
+
 function updateSchoolStatus(message, tone = "neutral") {
   if (!elements.schoolStatus) return;
   const schoolName = elements.schoolName?.value?.trim();
@@ -274,8 +291,11 @@ function updateSchoolStatus(message, tone = "neutral") {
   const defaultMessage = schoolName
     ? `${region} 기준으로 검색합니다.`
     : "학교 확인 전 · 학교명을 입력하면 검색 지역을 자동으로 잡습니다.";
-  elements.schoolStatus.textContent = message || defaultMessage;
+  const displayMessage = message || defaultMessage;
+  const isBusy = tone === "loading" || isBusyStatusMessage(displayMessage);
+  elements.schoolStatus.textContent = stripStaticDots(displayMessage);
   elements.schoolStatus.dataset.tone = tone;
+  setLoadingDots(elements.schoolStatus, isBusy);
 }
 
 function handleSchoolNameInput() {
@@ -475,10 +495,12 @@ function setMainButtonLoading(isLoading) {
   [elements.fetchSenBtn, elements.ctaMapBtn].filter(Boolean).forEach((button) => {
     button.disabled = isLoading;
     button.classList.toggle("is-loading", isLoading);
+    if (isLoading) button.setAttribute("aria-busy", "true");
+    else button.removeAttribute("aria-busy");
   });
   if (elements.fetchSenBtn) {
     elements.fetchSenBtn.innerHTML = isLoading
-      ? `<small>진행</small> 만드는 중...`
+      ? `<small>진행</small> 만드는 중`
       : `<small>시작</small> 사용처 지도 만들기`;
   }
 }
@@ -534,8 +556,10 @@ async function runFullWorkflow() {
 
 function setAutoStatus(message, isError = false) {
   if (!elements.autoStatusText) return;
-  elements.autoStatusText.textContent = message;
+  const isBusy = isBusyStatusMessage(message, isError);
+  elements.autoStatusText.textContent = stripStaticDots(message);
   elements.autoStatusText.style.color = isError ? "#c2410c" : "#687386";
+  setLoadingDots(elements.autoStatusText, isBusy);
 }
 
 function formatAutoFetchError(error) {
@@ -1270,8 +1294,10 @@ function formatWon(value) {
 }
 
 function setStatus(message, isError = false) {
-  elements.statusText.textContent = message;
+  const isBusy = isBusyStatusMessage(message, isError);
+  elements.statusText.textContent = stripStaticDots(message);
   elements.statusText.style.color = isError ? "#c2410c" : "#687386";
+  setLoadingDots(elements.statusText, isBusy);
 }
 
 function escapeHtml(value) {
