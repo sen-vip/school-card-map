@@ -10,7 +10,7 @@
   <header class="app-header">
     <div class="header-inner">
       <div>
-        <p class="eyebrow">카드지도 v1.3.1</p>
+        <p class="eyebrow">카드지도 v1.2.10</p>
         <h1>학교카드 사용지도</h1>
         <p class="lead">서울특별시교육청 업무추진비 공개자료를 불러와 학교카드 사용처를 지도와 표로 정리합니다.</p>
       </div>
@@ -27,7 +27,7 @@
         <div>
           <p class="eyebrow">학교카드 사용처 지도</p>
           <h2 id="setup-title">학교카드 사용처 지도</h2>
-          <p class="help-text">학교명과 기준월만 입력하면 자료 수집부터 지도 표시까지 한 번에 진행합니다.</p>
+          <p class="help-text">학교명과 기준월만 입력하면 자료 수집부터 지도 표시까지 한 번에 진행합니다. 기준월은 공개자료가 올라온 지난달로 기본 설정됩니다.</p>
         </div>
         <button type="button" class="ghost-button" id="sampleBtn">예시 넣기</button>
       </div>
@@ -38,7 +38,7 @@
           <input id="schoolName" type="text" placeholder="예: 금천고, 구암중, 무학여고" autocomplete="off" />
         </label>
         <label class="month-field">
-          <span>기준월</span>
+          <span>기준월 <em>기본 지난달</em></span>
           <input id="baseMonth" type="month" />
         </label>
         <div class="main-cta-slot" aria-label="사용처 지도 만들기 실행">
@@ -255,7 +255,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용지도 · 카드지도 v1.3.1 · 학돌랩</p>
+    <p>학교카드 사용지도 · 카드지도 v1.2.10 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>
