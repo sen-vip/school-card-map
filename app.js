@@ -945,7 +945,7 @@ function renderTabs() {
   ).join("");
 
   if (state.mode === "mapped") {
-    elements.tableHint.textContent = "지도 표시 대상에는 표시 완료, 수동 확인 완료, 확인 필요 항목이 함께 보입니다. 애매한 항목만 위치 수정으로 고르면 됩니다.";
+    elements.tableHint.textContent = "지도에 표시된 사용처입니다. 애매한 항목만 위치를 확인해 주세요.";
   } else if (state.mode === "parsed") {
     elements.tableHint.textContent = "자료 확인 상태입니다. 위의 [사용처 지도 만들기] 버튼으로 지도까지 한 번에 만들 수 있습니다.";
   } else {
@@ -1043,69 +1043,113 @@ function getFailedGroups() {
 function renderTable() {
   const tab = state.currentTab;
   let rows = [];
-  let columns = [];
-  let colGroup = "";
 
   if (state.mode === "mapped") {
-    if (tab === "mapped") {
-      rows = getDisplayedRows();
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "지도상태"];
-      colGroup = renderColGroup();
-    } else if (tab === "excluded") {
-      rows = state.excludedRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
-      colGroup = renderColGroup();
-    } else {
-      rows = state.rawRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "상태"];
-      colGroup = renderColGroup();
-    }
+    if (tab === "mapped") rows = getDisplayedRows();
+    else if (tab === "excluded") rows = state.excludedRows;
+    else rows = state.rawRows;
   } else {
-    if (tab === "target") {
-      rows = state.visibleRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "상태"];
-      colGroup = renderColGroup();
-    } else if (tab === "excluded") {
-      rows = state.excludedRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
-      colGroup = renderColGroup();
-    } else {
-      rows = state.rawRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "정제결과"];
-      colGroup = renderColGroup();
-    }
+    if (tab === "target") rows = state.visibleRows;
+    else if (tab === "excluded") rows = state.excludedRows;
+    else rows = state.rawRows;
   }
 
   if (!rows.length) {
     let message = "해당 내역이 없습니다.";
     if (!state.rawRows.length) message = "아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 사용처 지도 만들기를 눌러주세요.";
-    else if (state.mode === "mapped" && tab === "mapped") message = "지도에 표시된 장소가 없습니다. 전체 탭에서 검색 실패 내역을 확인해 주세요.";
+    else if (state.mode === "mapped" && tab === "mapped") message = "지도에 표시된 장소가 없습니다. 전체에서 검색 실패 내역을 확인해 주세요.";
     else if (state.mode === "mapped" && tab === "excluded") message = "지도 제외 내역이 없습니다.";
-    elements.tableWrap.className = "table-wrap empty-state";
+    elements.tableWrap.className = "place-list-wrap empty-state";
     elements.tableWrap.innerHTML = `<p>${escapeHtml(message)}</p>`;
     return;
   }
 
-  elements.tableWrap.className = "table-wrap";
-  const body = rows.map((row) => {
-    const group = getGroupForRow(row);
-    const canJump = state.mode === "mapped" && DISPLAY_STATUSES.includes(group?.status) && group?.marker;
-    const status = getRowStatus(row, tab);
-    const rowClass = [canJump ? "map-row" : "", getRowToneClass(group, tab, row)].filter(Boolean).join(" ");
-    return `<tr class="${rowClass}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
-      <td data-label="집행일자">${escapeHtml(row.date)}</td>
-      <td data-label="집행장소"><strong>${escapeHtml(row.place)}</strong></td>
-      <td data-label="집행금액" class="amount">${formatWon(row.amount)}</td>
-      <td data-label="집행목적"><div class="purpose-cell" title="${escapeHtml(row.purpose)}">${escapeHtml(row.purpose)}</div></td>
-      <td data-label="상태">${renderStatusBadge(status, tab, canJump, row.placeKey, row)}</td>
-    </tr>`;
-  }).join("");
+  elements.tableWrap.className = "place-list-wrap";
+  elements.tableWrap.innerHTML = `<div class="place-list" role="list">${rows.map((row) => renderPlaceCard(row, tab)).join("")}</div>`;
+}
 
-  elements.tableWrap.innerHTML = `<table>
-    ${colGroup}
-    <thead><tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr></thead>
-    <tbody>${body}</tbody>
-  </table>`;
+function renderPlaceCard(row, tab) {
+  const group = getGroupForRow(row);
+  const isDisplayed = state.mode === "mapped" && DISPLAY_STATUSES.includes(group?.status);
+  const canJump = isDisplayed && group?.marker;
+  const toneClass = getRowToneClass(group, tab, row).replace("row-", "card-");
+  const status = getCardStatusMeta(group, row, tab);
+  const purpose = row.purpose || "집행목적 없음";
+  const info = getCardMapInfo(group, row, tab);
+  const action = renderCardAction(group, row, tab);
+  const titleAttr = canJump ? "지도에서 위치 보기" : "";
+
+  return `<article class="place-card ${toneClass} ${canJump ? "map-card" : ""}" role="listitem" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}" title="${titleAttr}"` : ""}>
+    <div class="place-card-main">
+      <div class="place-card-head">
+        <div class="place-title-wrap">
+          <span class="badge ${status.className}">${escapeHtml(status.label)}</span>
+          <strong class="place-title">${escapeHtml(row.place || "-")}</strong>
+        </div>
+        <strong class="place-amount">${formatWon(row.amount)}</strong>
+      </div>
+      <p class="place-meta">${escapeHtml(row.date || "-")} · ${escapeHtml(truncateText(purpose, 42))}</p>
+      <div class="place-map-info">
+        <span>${escapeHtml(info.label)}</span>
+        <strong>${escapeHtml(info.primary)}</strong>
+        ${info.secondary ? `<em>${escapeHtml(info.secondary)}</em>` : ""}
+      </div>
+    </div>
+    ${action ? `<div class="place-card-actions">${action}</div>` : ""}
+  </article>`;
+}
+
+function getCardStatusMeta(group, row, tab) {
+  if (row?.excludeReason && (!group || tab === "excluded" || state.currentTab === "all")) {
+    return { label: "지도 제외", className: "gray" };
+  }
+  if (!group || state.mode !== "mapped") {
+    return { label: row?.excludeReason ? "지도 제외" : "지도 대상", className: row?.excludeReason ? "gray" : "" };
+  }
+  if (group.status === "manual") return { label: "수동 확인", className: "manual" };
+  if (group.status === "needs_review") return { label: "확인 필요", className: "warn" };
+  if (group.status === "failed") return { label: "검색 실패", className: "danger" };
+  return { label: "표시 완료", className: "" };
+}
+
+function getCardMapInfo(group, row, tab) {
+  if (row?.excludeReason && (tab === "excluded" || !group)) {
+    return { label: "제외 사유", primary: row.excludeReason, secondary: "지도에 표시하지 않는 항목입니다." };
+  }
+  if (!group || state.mode !== "mapped") {
+    return { label: "정제 상태", primary: row?.excludeReason || "지도 대상", secondary: "사용처 지도 만들기 후 위치가 표시됩니다." };
+  }
+  if (group.status === "failed") {
+    return { label: "검색 결과", primary: group.reviewReason || "장소 검색 결과가 없습니다.", secondary: "다시 검색으로 위치를 직접 선택할 수 있습니다." };
+  }
+  if (group.status === "needs_review") {
+    return { label: "지도 위치", primary: group.placeName || group.address || "위치 확인 필요", secondary: group.reviewReason || group.address || "위치가 맞는지 확인해 주세요." };
+  }
+  if (group.status === "manual") {
+    return { label: "지도 위치", primary: group.placeName || group.address || "수동 확인 완료", secondary: group.address || "직접 선택한 위치입니다." };
+  }
+  return { label: "지도 위치", primary: group.placeName || group.address || "표시 완료", secondary: group.address || group.reviewReason || "" };
+}
+
+function renderCardAction(group, row, tab) {
+  if (!group || !["mapped", "manual", "needs_review", "failed"].includes(group.status)) return "";
+  const placeKey = escapeHtml(row.placeKey || group.key);
+  if (group.status === "failed") {
+    return `<button type="button" class="mini-action strong" data-edit-place-key="${placeKey}">다시 검색</button>`;
+  }
+  if (group.status === "needs_review") {
+    return `<button type="button" class="mini-action strong warn-action" data-edit-place-key="${placeKey}">위치 확인하기</button>`;
+  }
+  if (group.status === "manual") {
+    return `<button type="button" class="mini-action ghost" data-edit-place-key="${placeKey}">다시 수정</button>`;
+  }
+  return `<button type="button" class="mini-action ghost" data-edit-place-key="${placeKey}">위치 수정</button>`;
+}
+
+function truncateText(value, maxLength = 40) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1)}…`;
 }
 
 function renderColGroup() {
@@ -1216,8 +1260,8 @@ function focusPlaceOnMap(placeKey) {
   if (state.map.getLevel() > 4) state.map.setLevel(4);
   group.infowindow?.open(state.map, group.marker);
 
-  elements.tableWrap.querySelectorAll("tr.row-focus").forEach((row) => row.classList.remove("row-focus"));
-  elements.tableWrap.querySelectorAll(`tr[data-place-key="${CSS.escape(placeKey)}"]`).forEach((row) => row.classList.add("row-focus"));
+  elements.tableWrap.querySelectorAll(".row-focus, .card-focus").forEach((row) => row.classList.remove("row-focus", "card-focus"));
+  elements.tableWrap.querySelectorAll(`[data-place-key="${CSS.escape(placeKey)}"]`).forEach((row) => row.classList.add(row.classList.contains("place-card") ? "card-focus" : "row-focus"));
   setStatus(`${group.place} 위치로 이동했습니다.`);
 }
 
