@@ -1,436 +1,238 @@
-from __future__ import annotations
-
-import html
-import json
-import os
-import re
-import sys
-import urllib.parse
-import urllib.request
-from http.client import HTTPResponse
-from http.cookiejar import CookieJar
-from html.parser import HTMLParser
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
-
-PORT = 5500
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LIST_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do"
-DETAIL_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010d.do"
-
-BROWSER_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.6,en;q=0.5",
-    "Origin": "https://open.sen.go.kr",
-}
-
-
-def normalize_month(value: str) -> str:
-    digits = re.sub(r"\D", "", value or "")
-    if len(digits) >= 6:
-        return digits[:6]
-    return digits
-
-
-def clean_text(value: str) -> str:
-    value = html.unescape(value or "")
-    value = value.replace("\xa0", " ")
-    value = re.sub(r"\s+", " ", value).strip()
-    return value
-
-
-def normalize_date(value: str) -> str:
-    text = clean_text(value)
-    match = re.search(r"(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})", text)
-    if not match:
-        return text
-    y, m, d = match.groups()
-    return f"{y}-{int(m):02d}-{int(d):02d}"
-
-
-def parse_amount(value: str) -> int:
-    text = clean_text(value)
-    digits = re.sub(r"[^0-9-]", "", text)
-    if not digits or digits == "-":
-        return 0
-    try:
-        return int(digits)
-    except ValueError:
-        return 0
-
-
-class TableCellParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.rows: list[list[str]] = []
-        self._in_tr = False
-        self._in_cell = False
-        self._current_row: list[str] = []
-        self._current_cell: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        tag = tag.lower()
-        if tag == "tr":
-            self._in_tr = True
-            self._current_row = []
-        elif tag in {"td", "th"} and self._in_tr:
-            self._in_cell = True
-            self._current_cell = []
-        elif tag == "br" and self._in_cell:
-            self._current_cell.append(" ")
-
-    def handle_data(self, data: str) -> None:
-        if self._in_cell:
-            self._current_cell.append(data)
-
-    def handle_endtag(self, tag: str) -> None:
-        tag = tag.lower()
-        if tag in {"td", "th"} and self._in_cell:
-            self._current_row.append(clean_text("".join(self._current_cell)))
-            self._current_cell = []
-            self._in_cell = False
-        elif tag == "tr" and self._in_tr:
-            if any(cell for cell in self._current_row):
-                self.rows.append(self._current_row)
-            self._current_row = []
-            self._in_tr = False
-
-
-def parse_table_rows(html_text: str) -> list[list[str]]:
-    parser = TableCellParser()
-    parser.feed(html_text)
-    return parser.rows
-
-
-def looks_like_header(cells: list[str]) -> bool:
-    joined = " ".join(cells)
-    required = ["집행일자", "집행장소", "집행금액", "집행목적"]
-    return sum(1 for item in required if item in joined) >= 3
-
-
-def make_header_map(cells: list[str]) -> dict[str, int]:
-    mapping: dict[str, int] = {}
-    for index, cell in enumerate(cells):
-        normalized = cell.replace(" ", "").replace("(원)", "")
-        if "번호" in normalized:
-            mapping["number"] = index
-        elif "집행일자" in normalized:
-            mapping["date"] = index
-        elif "집행장소" in normalized:
-            mapping["place"] = index
-        elif "집행금액" in normalized:
-            mapping["amount"] = index
-        elif "집행목적" in normalized:
-            mapping["purpose"] = index
-        elif "집행대상" in normalized or "참석자" in normalized:
-            mapping["target"] = index
-        elif "집행시간" in normalized:
-            mapping["time"] = index
-        elif "승인자" in normalized:
-            mapping["approver"] = index
-    return mapping
-
-
-def get_cell(cells: list[str], mapping: dict[str, int], key: str, fallback_index: int) -> str:
-    index = mapping.get(key, fallback_index)
-    if 0 <= index < len(cells):
-        return clean_text(cells[index])
-    return ""
-
-
-def row_from_cells(cells: list[str], mapping: dict[str, int] | None) -> dict[str, Any] | None:
-    if len(cells) < 5:
-        return None
-    mapping = mapping or {}
-    row = {
-        "number": get_cell(cells, mapping, "number", 0),
-        "date": normalize_date(get_cell(cells, mapping, "date", 1)),
-        "place": get_cell(cells, mapping, "place", 2),
-        "amount": parse_amount(get_cell(cells, mapping, "amount", 3)),
-        "purpose": get_cell(cells, mapping, "purpose", 4),
-        "target": get_cell(cells, mapping, "target", 5),
-        "time": get_cell(cells, mapping, "time", 6),
-        "approver": get_cell(cells, mapping, "approver", 7),
-    }
-    if not re.match(r"^20\d{2}-\d{2}-\d{2}$", row["date"]):
-        return None
-    if not row["place"] or not row["purpose"]:
-        return None
-    return row
-
-
-def extract_detail_rows(html_text: str) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    header_map: dict[str, int] | None = None
-    for cells in parse_table_rows(html_text):
-        if looks_like_header(cells):
-            header_map = make_header_map(cells)
-            continue
-        row = row_from_cells(cells, header_map)
-        if row:
-            rows.append(row)
-    return dedupe_rows(rows)
-
-
-def dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen: set[str] = set()
-    result: list[dict[str, Any]] = []
-    for row in rows:
-        key = "|".join(str(row.get(item, "")) for item in ["date", "place", "amount", "purpose"])
-        if key in seen:
-            continue
-        seen.add(key)
-        item = dict(row)
-        item["id"] = len(result) + 1
-        result.append(item)
-    return result
-
-
-def extract_detail_candidates(html_text: str, wanted_school: str, wanted_month: str) -> list[dict[str, str]]:
-    pattern = re.compile(
-        r"fncDetailList\(\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*\)",
-        re.IGNORECASE,
-    )
-    candidates: list[dict[str, str]] = []
-    for school_code, neis_cd, school_name, stdr_month in pattern.findall(html_text):
-        school_name = clean_text(school_name)
-        month = normalize_month(stdr_month)
-        if wanted_month and month != wanted_month:
-            continue
-        if wanted_school and wanted_school not in school_name:
-            continue
-        candidates.append(
-            {
-                "school_code": clean_text(school_code),
-                "neis_cd": clean_text(neis_cd),
-                "school_name": school_name,
-                "stdr_month": month,
-            }
-        )
-    return candidates
-
-
-def extract_page_count(html_text: str, total_rows: int) -> int:
-    text = clean_text(re.sub(r"<[^>]+>", " ", html_text))
-    match = re.search(r"전체\s*([0-9,]+)\s*건\s*\d+\s*/\s*(\d+)", text)
-    if match:
-        return max(1, int(match.group(2)))
-    match = re.search(r"\b\d+\s*/\s*(\d+)\b", text)
-    if match:
-        return max(1, int(match.group(1)))
-    if total_rows > 10:
-        return (total_rows + 9) // 10
-    return 1
-
-
-def decode_response(response: HTTPResponse, data: bytes) -> str:
-    content_type = response.headers.get("Content-Type", "")
-    charset_match = re.search(r"charset=([\w-]+)", content_type, re.IGNORECASE)
-    candidates = []
-    if charset_match:
-        candidates.append(charset_match.group(1))
-    candidates.extend(["utf-8", "cp949", "euc-kr"])
-    for encoding in candidates:
-        try:
-            return data.decode(encoding)
-        except (LookupError, UnicodeDecodeError):
-            continue
-    return data.decode("utf-8", errors="replace")
-
-
-def post_form(opener: urllib.request.OpenerDirector, url: str, form: dict[str, str], referer: str | None = None) -> str:
-    encoded = urllib.parse.urlencode(form).encode("utf-8")
-    headers = dict(BROWSER_HEADERS)
-    headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
-    headers["Referer"] = referer or LIST_URL
-    request = urllib.request.Request(url, data=encoded, headers=headers, method="POST")
-    with opener.open(request, timeout=25) as response:
-        data = response.read()
-        return decode_response(response, data)
-
-
-def make_list_payload(school_name: str, page_index: int) -> dict[str, str]:
-    return {
-        "pageIndex": str(page_index),
-        "school_code": "",
-        "neis_cd": "",
-        "school_name": "",
-        "stdr_month": "",
-        "searchOraCode": "",
-        "searchSchoolCode": "",
-        "searchStaDate": "",
-        "searchEndDate": "",
-        "searchCondition": "school_name",
-        "searchKeyword": school_name,
-        "x": "20",
-        "y": "20",
-    }
-
-
-def make_detail_payload(candidate: dict[str, str], school_name: str, det_page_index: int) -> dict[str, str]:
-    payload = {
-        "pageIndex": "1",
-        "school_code": candidate["school_code"],
-        "neis_cd": candidate["neis_cd"],
-        "school_name": candidate["school_name"],
-        "stdr_month": candidate["stdr_month"],
-        "searchOraCode": "",
-        "searchSchoolCode": "",
-        "searchStaDate": "",
-        "searchEndDate": "",
-        "searchCondition": "school_name",
-        "searchKeyword": school_name,
-        "seq": "",
-        "searchDetStaDate": "",
-        "searchDetEndDate": "",
-        "searchDetCondition": "all",
-        "searchDetKeyword": "",
-    }
-    if det_page_index > 1:
-        payload["detPageIndex"] = str(det_page_index)
-    else:
-        payload["detPageIndex"] = "1"
-    return payload
-
-
-def collect_sen_budget_rows(school_name: str, base_month: str) -> dict[str, Any]:
-    school_name = clean_text(school_name)
-    wanted_month = normalize_month(base_month)
-    if not school_name:
-        raise ValueError("학교명을 입력해 주세요.")
-    if not re.match(r"^20\d{4}$", wanted_month):
-        raise ValueError("기준월을 YYYY-MM 또는 YYYYMM 형식으로 입력해 주세요.")
-
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
-    detail_candidate: dict[str, str] | None = None
-    tried_list_pages: list[int] = []
-
-    # 학교명 검색 결과에서 원하는 기준월의 fncDetailList(...)를 찾는다.
-    for page_index in range(1, 16):
-        tried_list_pages.append(page_index)
-        list_html = post_form(opener, LIST_URL, make_list_payload(school_name, page_index), referer=LIST_URL)
-        candidates = extract_detail_candidates(list_html, school_name, wanted_month)
-        if candidates:
-            detail_candidate = candidates[0]
-            break
-        # 검색 결과가 사실상 없으면 더 돌지 않는다.
-        if "fncDetailList" not in list_html and page_index >= 3:
-            break
-
-    if not detail_candidate:
-        raise LookupError(f"{school_name} / {wanted_month} 목록에서 상세보기 정보를 찾지 못했습니다.")
-
-    all_rows: list[dict[str, Any]] = []
-    page_count = 1
-    page_debug: list[dict[str, Any]] = []
-
-    first_html = post_form(opener, DETAIL_URL, make_detail_payload(detail_candidate, school_name, 1), referer=LIST_URL)
-    first_rows = extract_detail_rows(first_html)
-    page_count = extract_page_count(first_html, len(first_rows))
-    page_debug.append({"detPageIndex": 1, "rows": len(first_rows)})
-    all_rows.extend(first_rows)
-
-    # 상세 페이지는 pageIndex가 아니라 detPageIndex로 넘겨야 한다.
-    for det_page in range(2, min(page_count, 30) + 1):
-        detail_html = post_form(opener, DETAIL_URL, make_detail_payload(detail_candidate, school_name, det_page), referer=DETAIL_URL)
-        page_rows = extract_detail_rows(detail_html)
-        page_debug.append({"detPageIndex": det_page, "rows": len(page_rows)})
-        all_rows.extend(page_rows)
-
-    rows = dedupe_rows(all_rows)
-    rows = [row for row in rows if str(row.get("date", "")).replace("-", "")[:6] == wanted_month]
-    for index, row in enumerate(rows, start=1):
-        row["id"] = index
-
-    return {
-        "schoolName": detail_candidate["school_name"],
-        "baseMonth": wanted_month,
-        "detail": detail_candidate,
-        "rows": rows,
-        "debug": {
-            "listPagesTried": tried_list_pages,
-            "detailPages": page_debug,
-            "pageCount": page_count,
-            "rowCount": len(rows),
-        },
-    }
-
-
-class CardMapHandler(SimpleHTTPRequestHandler):
-    def translate_path(self, path: str) -> str:
-        path = urllib.parse.urlparse(path).path
-        path = os.path.normpath(urllib.parse.unquote(path)).lstrip(os.sep)
-        return os.path.join(BASE_DIR, path)
-
-    def end_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        super().end_headers()
-
-    def do_OPTIONS(self) -> None:
-        self.send_response(204)
-        self.end_headers()
-
-    def do_GET(self) -> None:
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/school_info":
-            self.handle_school_info(parsed)
-            return
-        super().do_GET()
-
-    def do_POST(self) -> None:
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/sen-fetch":
-            self.handle_sen_fetch()
-            return
-        self.send_error(404, "Not Found")
-
-    def write_json(self, status: int, payload: dict[str, Any]) -> None:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(data)
-
-    def handle_sen_fetch(self) -> None:
-        try:
-            length = int(self.headers.get("Content-Length", "0") or "0")
-            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
-            body = json.loads(raw or "{}")
-            result = collect_sen_budget_rows(str(body.get("schoolName", "")), str(body.get("baseMonth", "")))
-            self.write_json(200, {"ok": True, **result})
-        except Exception as exc:  # noqa: BLE001
-            self.write_json(502, {"ok": False, "error": str(exc), "type": exc.__class__.__name__})
-
-    def handle_school_info(self, parsed: urllib.parse.ParseResult) -> None:
-        try:
-            from api.school_info import lookup_school, clean_text as clean_school_text
-
-            query = urllib.parse.parse_qs(parsed.query)
-            school_name = clean_school_text(query.get("schoolName", [""])[0])
-            if not school_name:
-                self.write_json(400, {"ok": False, "error": "schoolName을 입력해 주세요."})
-                return
-            payload = lookup_school(school_name)
-            self.write_json(200 if payload.get("ok") else 404, payload)
-        except Exception as exc:  # noqa: BLE001
-            self.write_json(502, {"ok": False, "error": str(exc), "type": exc.__class__.__name__})
-
-
-
-if __name__ == "__main__":
-    os.chdir(BASE_DIR)
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), CardMapHandler)
-    print(f"학교카드 사용지도 v1.2.0 서울교육청 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
-    print("종료하려면 Ctrl+C")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n서버를 종료합니다.")
-        server.server_close()
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>학교카드 사용지도</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <div>
+        <p class="eyebrow">카드지도 v1.1.9</p>
+        <h1>학교카드 사용지도</h1>
+        <p class="lead">서울특별시교육청 업무추진비 공개자료를 불러와 학교카드 사용처를 지도와 표로 정리합니다.</p>
+      </div>
+      <div class="header-card">
+        <strong>서울교육청 전용</strong>
+        <span>Vercel 배포에서 자동수집 API까지 함께 동작합니다.</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="panel setup-panel compact-panel" aria-labelledby="setup-title">
+      <div class="section-title-row">
+        <div>
+          <p class="eyebrow">기본 정보</p>
+          <h2 id="setup-title">학교와 기준월을 선택하세요</h2>
+        </div>
+        <button type="button" class="ghost-button" id="sampleBtn">예시 넣기</button>
+      </div>
+
+      <div class="form-grid main-form-grid">
+        <label>
+          <span>학교명</span>
+          <input id="schoolName" type="text" placeholder="예: 금천고, 대청중" autocomplete="off" />
+          <em id="schoolStatus" class="field-status">학교 확인 전 · 학교명을 입력하면 검색 지역을 자동으로 잡습니다.</em>
+        </label>
+        <label>
+          <span>기준월</span>
+          <input id="baseMonth" type="month" />
+        </label>
+      </div>
+
+      <div class="settings-line">
+        <span class="setting-pill seoul-only">서울특별시교육청 공개자료 전용</span>
+        <span class="setting-pill" id="keyStatus">지도 API 설정 완료</span>
+        <span class="setting-pill" id="regionStatus">검색 지역: 서울특별시</span>
+      </div>
+
+      <details class="notice settings-details">
+        <summary>지도 고급 설정</summary>
+        <div class="settings-grid">
+          <label>
+            <span>카카오 JavaScript 키 <em>선택</em></span>
+            <input id="kakaoKey" type="password" placeholder="일반 사용자는 비워두세요. 기본 키를 사용합니다." autocomplete="off" />
+          </label>
+          <label>
+            <span>지역 보조어 <em>선택</em></span>
+            <input id="areaHint" type="text" placeholder="자동 추정됩니다. 필요할 때만 예: 강남구" />
+          </label>
+        </div>
+        <p>일반 사용자는 수정하지 않아도 됩니다. 기본 카카오 JavaScript 키와 학교명 기반 검색 지역을 자동으로 사용합니다. 직접 입력한 키와 지역 보조어는 이 브라우저의 localStorage에만 저장되며, 지역 보조어는 지도 장소 검색 보정에만 사용됩니다.</p>
+      </details>
+    </section>
+
+    <section class="panel auto-panel primary-workflow" aria-labelledby="auto-title">
+      <div class="section-title-row">
+        <div>
+          <p class="eyebrow">한 번에 만들기</p>
+          <h2 id="auto-title">사용처 지도 만들기</h2>
+        </div>
+      </div>
+      <p class="help-text">학교명과 기준월만 입력하고 아래 버튼을 누르면 학교 지역 확인, 서울교육청 자료 수집, 사용처 위치 검색까지 한 번에 진행합니다.</p>
+
+      <input id="senSourceUrl" type="hidden" value="https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do" />
+      <input id="senProxyUrl" type="hidden" value="/sen-fetch" readonly />
+
+      <div class="action-row main-action-row">
+        <button type="button" class="primary-button step-button large-action main-cta-button" id="fetchSenBtn"><small>시작</small> 사용처 지도 만들기</button>
+        <span id="autoStatusText" class="status-text" role="status">대기 중입니다. 버튼 하나로 자료 조회와 지도 생성을 이어서 실행합니다.</span>
+      </div>
+
+      <ol class="workflow-steps" id="workflowSteps" aria-label="진행 상태">
+        <li data-step="school">학교 지역 확인</li>
+        <li data-step="fetch">서울교육청 자료 수집</li>
+        <li data-step="parse">지도 대상 정리</li>
+        <li data-step="map">사용처 위치 검색</li>
+        <li data-step="done">지도 표시 완료</li>
+      </ol>
+
+      <details class="notice auto-debug" id="autoDebugBox">
+        <summary>자동수집 상세 정보</summary>
+        <div class="debug-meta">
+          <button type="button" class="ghost-button small-inline-button" id="openSenBtn">원문 공개페이지 보기</button>
+          <p><b>요청 방식</b> POST · <b>자동수집 API</b> /sen-fetch → /api/sen_fetch</p>
+          <p><b>목록 URL</b> https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do</p>
+          <p><b>상세 URL</b> https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010d.do</p>
+        </div>
+        <pre id="autoDebugText">아직 자동수집 상세 정보가 없습니다.</pre>
+      </details>
+    </section>
+
+    <section class="panel cta-panel hidden" id="nextActionPanel" aria-live="polite">
+      <div class="cta-copy">
+        <span class="cta-badge" id="nextActionBadge">다음 단계</span>
+        <div>
+          <h2 id="nextActionTitle">자료 확인이 완료되었습니다.</h2>
+          <p id="nextActionDesc">이제 사용처 위치를 지도에 표시할 수 있습니다.</p>
+        </div>
+      </div>
+      <button type="button" class="primary-button step-button cta-map-button" id="ctaMapBtn"><small>다시</small> 사용처 지도 다시 만들기</button>
+    </section>
+
+    <section class="summary-grid" aria-label="요약">
+      <article class="summary-card">
+        <span>전체 건수</span>
+        <strong id="totalCount">0</strong>
+      </article>
+      <article class="summary-card">
+        <span>총 사용액</span>
+        <strong id="totalAmount">0원</strong>
+      </article>
+      <article class="summary-card target">
+        <span>지도 대상</span>
+        <strong id="targetCount">0건</strong>
+      </article>
+      <article class="summary-card good strong-good">
+        <span>표시 완료</span>
+        <strong id="mappedCount">0건</strong>
+      </article>
+      <article class="summary-card warn">
+        <span>위치 확인 필요</span>
+        <strong id="pendingCount">0건</strong>
+      </article>
+      <article class="summary-card muted">
+        <span>지도 제외</span>
+        <strong id="excludedCount">0건</strong>
+      </article>
+    </section>
+
+    <section class="workspace">
+      <section class="panel table-panel" aria-labelledby="list-title">
+        <div class="section-title-row sticky-title">
+          <div>
+            <p class="eyebrow">RESULT</p>
+            <h2 id="list-title">정제 결과</h2>
+          </div>
+          <div class="tabs" id="resultTabs" role="tablist" aria-label="결과 탭"></div>
+        </div>
+        <p class="table-hint" id="tableHint">[사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 순서대로 진행됩니다.</p>
+        <div id="tableWrap" class="table-wrap empty-state">
+          <p>아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 <strong>사용처 지도 만들기</strong>를 눌러주세요.</p>
+        </div>
+      </section>
+
+      <section class="panel map-panel" aria-labelledby="map-title">
+        <div class="section-title-row">
+          <div>
+            <p class="eyebrow">MAP</p>
+            <h2 id="map-title">사용처 지도</h2>
+          </div>
+          <button type="button" class="ghost-button" id="fitMapBtn">전체 표시 보기</button>
+        </div>
+        <div class="map-shell">
+          <div id="map" class="map-placeholder">
+            <div>
+              <strong>지도 대기 중</strong>
+              <p>별도 설정 없이 사용처 지도 만들기를 누르면 마커가 표시됩니다.</p>
+            </div>
+          </div>
+          <div id="mapNotice" class="map-notice hidden">
+            <strong>아직 지도를 만들지 않았습니다.</strong>
+            <p>자료를 확인한 뒤 [사용처 지도 만들기]를 누르면 사용처 위치를 검색합니다.</p>
+          </div>
+        </div>
+        <div class="map-legend">
+          <span><i class="dot navy"></i>표시 완료</span>
+          <span><i class="dot gray"></i>제외/위치 확인은 표에서 확인</span>
+        </div>
+      </section>
+    </section>
+
+    <details class="panel paste-panel manual-panel" aria-labelledby="paste-title">
+      <summary class="manual-summary">
+        <span>
+          <span class="eyebrow">수동 입력</span>
+          <strong id="paste-title">수동으로 붙여넣기</strong>
+        </span>
+        <em>자동 불러오기가 어렵거나 테스트 자료를 사용할 때 사용</em>
+      </summary>
+      <div class="manual-content">
+        <div class="section-title-row">
+          <p class="help-text">서울교육청 상세화면의 표를 복사해 붙여넣으면 자동 불러오기와 동일한 방식으로 정제됩니다.</p>
+          <button type="button" class="ghost-button danger" id="clearBtn">초기화</button>
+        </div>
+        <div class="flow-guide" aria-label="사용 흐름">
+          <span><b>1단계 자료 확인</b> 표 인식·총액·지도 제외를 먼저 확인</span>
+          <span><b>2단계 지도 만들기</b> 장소 검색 후 마커 표시</span>
+        </div>
+        <textarea id="rawInput" rows="10" placeholder="번호	집행일자	집행장소	집행금액	집행목적	집행대상	집행시간	승인자&#10;1	2026-04-02	터프커피	149,100	학교운영위원회 정기회 다과비	운영위원	15:00	홍길동"></textarea>
+        <div class="action-row">
+          <button type="button" class="secondary-button step-button" id="parseOnlyBtn"><small>1단계</small> 자료 확인하기</button>
+          <button type="button" class="primary-button step-button" id="makeMapBtn"><small>2단계</small> 지도 만들기</button>
+          <span id="statusText" class="status-text" role="status">수동 입력은 보조 기능입니다. 일반 사용자는 위의 [사용처 지도 만들기] 버튼을 이용하세요.</span>
+        </div>
+      </div>
+    </details>
+
+
+    <section class="panel rules-panel" aria-labelledby="rules-title">
+      <div class="section-title-row">
+        <div>
+          <p class="eyebrow">RULES</p>
+          <h2 id="rules-title">지도 제외 규칙</h2>
+        </div>
+      </div>
+      <div class="rule-grid">
+        <div>
+          <h3>집행목적 제외</h3>
+          <p id="purposeRules"></p>
+        </div>
+        <div>
+          <h3>집행장소 제외</h3>
+          <p id="placeRules"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>학교카드 사용지도 · 카드지도 v1.1.9 · 학돌랩</p>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
