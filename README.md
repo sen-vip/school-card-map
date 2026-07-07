@@ -1,1424 +1,286 @@
-const PURPOSE_EXCLUDE_KEYWORDS = [
-  "경조사비", "경조비", "부의금", "축의금", "조의금", "근조", "화환", "직책급업무추진비"
-];
-
-const PLACE_EXCLUDE_KEYWORDS = [
-  "지마켓", "G마켓", "g마켓", "주식회사 지마켓", "11번가", "십일번가", "옥션", "쿠팡",
-  "네이버쇼핑", "네이버페이", "SSG", "ssg", "에스에스지", "에스에스지닷컴", "쓱", "인터파크", "온라인", "인터넷", "택배"
-];
-
-const SEN_DEFAULT_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do";
-const SEN_DETAIL_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010d.do";
-const AUTO_FETCH_ENDPOINT = "/sen-fetch";
-// 브라우저에서 사용하는 카카오 JavaScript 키입니다.
-// REST API 키/Admin 키가 아니며, 카카오 개발자센터의 JavaScript SDK 도메인 제한으로 보호합니다.
-const DEFAULT_KAKAO_JS_KEY = "9a75b8f0e12044be3f4588a0f3c728b5";
-const DEFAULT_REGION_HINT = "서울특별시";
-const SCHOOL_REGION_OVERRIDES = {
-  "대청중": "서울특별시 강남구",
-  "대청중학교": "서울특별시 강남구",
-  "금천고": "서울특별시 금천구",
-  "금천고등학교": "서울특별시 금천구",
-};
-const SEOUL_DISTRICTS = [
-  "강남구", "서초구", "송파구", "강동구", "강서구", "양천구", "구로구", "금천구",
-  "영등포구", "동작구", "관악구", "마포구", "서대문구", "은평구", "종로구", "중구",
-  "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구", "노원구"
-];
-
-const SAMPLE_TEXT = `번호	집행일자	집행장소	집행금액	집행목적	집행대상	집행시간	승인자
-13	2026-02-04	주식회사부산어묵직판	105,000	[카드]2025학년도 공연한마당 평가회비 지출	창의체험부교사 외	2026-02-04 16:00	관리자
-12	2026-02-04	대치사월에보리밥	266,000	2025학년도 학교운영위원회 협의회비 지출	교장, 교감, 행정실장, 위원장, 부위원장, 학부모위원 2인, 지역위원 1인, 행정실 직원 2인	2026-02-04 16:00	관리자
-11	2026-02-05	채선당(성수동1가점)	363,000	2025학년도 부장교사 워크숍 비용 지출	교장, 교감, 행정실장, 부장교사 12명	2026-02-09 00:00	관리자
-10	2026-02-09	대치사월에보리밥	424,500	2025학년도 졸업식 평가협의비 지출	교장, 교감, 교무기획부장, 학년부장 등	2026-02-09 13:00	관리자
-9	2026-02-09	갱스터피자	231,300	시설관리업무 협의회비 지출	행정실장, 행정실 직원, 교무실 직원 등	2026-02-09 11:00	관리자
-8	2026-02-10	오토김밥 대치	300,000	2026학년도 계약제(기간제)교원 면접 및 계약 업무추진 협의회비 지출	교장, 교감, 행정실장, 교무부장 등	2026-02-10 11:00	관리자
-7	2026-02-20	명동관	504,000	2026학년도 신학년 대비 업무 협의회비 지출	교장, 교감, 행정실장, 부장교사 등	2026-02-20 12:00	관리자
-6	2026-02-23	주식회사 지마켓	872,020	[카드]행정실 및 관리실 방문객 접대용 다과류 구입	-	-	관리자
-5	2026-02-23	된밥장사장	92,500	2026학년도 신학년 집중 준비기간 협의회비 지출(2월 23일)	전체 교원 75명	2026-02-23 12:00	관리자
-4	2026-02-24	지미존스 역삼역점	832,240	2026학년도 신학년 집중 준비기간 협의회비 지출(2월 24일)	전체 교원 75명	2026-02-24 12:00	관리자
-3	2026-02-26	미니멜레 베이커리&커피바 개포점	287,720	신학년 대비 교육행정협의회비 지출	행정실장 외 18명	2026-02-26 12:30	관리자
-2	2026-02-27	주식회사 지마켓	435,000	[카드]2026학년도 급식 운영 관련 업무 협의회비 지출	교장 외 14명	2026-02-26 00:00	관리자
-1	2026-02-27	오토김밥 도곡점	1,174,000	2026학년도 신학년 집중 준비기간 협의회비 지출(2월 27일)	-	-	관리자`;
-
-const state = {
-  rawRows: [],
-  visibleRows: [],
-  excludedRows: [],
-  pendingRows: [],
-  groupedPlaces: [],
-  mode: "empty",
-  currentTab: "target",
-  map: null,
-  bounds: null,
-  markers: [],
-  infowindows: [],
-  kakaoLoaded: false,
-  schoolRegionHint: "",
-  schoolRegionSource: "default",
-  workflowRunning: false,
-  schoolCheckTimer: null,
-};
-
-const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-
-const elements = {
-  schoolName: $("#schoolName"),
-  schoolStatus: $("#schoolStatus"),
-  areaHint: $("#areaHint"),
-  baseMonth: $("#baseMonth"),
-  kakaoKey: $("#kakaoKey"),
-  rawInput: $("#rawInput"),
-  makeMapBtn: $("#makeMapBtn"),
-  parseOnlyBtn: $("#parseOnlyBtn"),
-  sampleBtn: $("#sampleBtn"),
-  clearBtn: $("#clearBtn"),
-  statusText: $("#statusText"),
-  tableWrap: $("#tableWrap"),
-  fitMapBtn: $("#fitMapBtn"),
-  map: $("#map"),
-  mapNotice: $("#mapNotice"),
-  tableHint: $("#tableHint"),
-  resultTabs: $("#resultTabs"),
-  senSourceUrl: $("#senSourceUrl"),
-  senProxyUrl: $("#senProxyUrl"),
-  fetchSenBtn: $("#fetchSenBtn"),
-  openSenBtn: $("#openSenBtn"),
-  autoStatusText: $("#autoStatusText"),
-  autoDebugBox: $("#autoDebugBox"),
-  autoDebugText: $("#autoDebugText"),
-  keyStatus: $("#keyStatus"),
-  regionStatus: $("#regionStatus"),
-  nextActionPanel: $("#nextActionPanel"),
-  nextActionBadge: $("#nextActionBadge"),
-  nextActionTitle: $("#nextActionTitle"),
-  nextActionDesc: $("#nextActionDesc"),
-  ctaMapBtn: $("#ctaMapBtn"),
-  workflowSteps: $("#workflowSteps"),
-};
-
-init();
-
-function init() {
-  // 기본 카카오 JavaScript 키가 내장되어 있으므로 일반 사용자는 키를 입력하지 않아도 됩니다.
-  // 사용자가 직접 저장한 키가 있으면 고급 설정에서 override 용도로만 표시합니다.
-  elements.kakaoKey.value = localStorage.getItem("schoolCardMapKakaoKey") || "";
-  elements.schoolName.value = localStorage.getItem("schoolCardMapSchoolName") || "";
-  // 지역 보조어는 학교별로 달라지므로 이전 학교의 값을 자동 적용하지 않습니다.
-  localStorage.removeItem("schoolCardMapAreaHint");
-  elements.areaHint.value = "";
-  elements.baseMonth.value = localStorage.getItem("schoolCardMapBaseMonth") || getCurrentMonth();
-  if (elements.senSourceUrl) elements.senSourceUrl.value = localStorage.getItem("schoolCardMapSenSourceUrl") || SEN_DEFAULT_URL;
-  // v1.1.4: 이전 버전에서 저장된 /sen-proxy?url= 값이 자동 불러오기를 막지 않도록 강제로 /sen-fetch를 사용합니다.
-  localStorage.removeItem("schoolCardMapSenProxyUrl");
-  if (elements.senProxyUrl) elements.senProxyUrl.value = AUTO_FETCH_ENDPOINT;
-  updateMapSettingStatus();
-
-  $("#purposeRules").textContent = PURPOSE_EXCLUDE_KEYWORDS.join(", ");
-  $("#placeRules").textContent = PLACE_EXCLUDE_KEYWORDS.join(", ");
-
-  elements.makeMapBtn.addEventListener("click", () => run({ withMap: true }));
-  elements.ctaMapBtn?.addEventListener("click", runFullWorkflow);
-  elements.parseOnlyBtn.addEventListener("click", () => run({ withMap: false }));
-  elements.fetchSenBtn?.addEventListener("click", runFullWorkflow);
-  elements.openSenBtn?.addEventListener("click", () => window.open(elements.senSourceUrl?.value || SEN_DEFAULT_URL, "_blank", "noopener"));
-  elements.sampleBtn.addEventListener("click", insertSample);
-  elements.clearBtn.addEventListener("click", clearAll);
-  elements.fitMapBtn.addEventListener("click", fitMapToMarkers);
-  elements.tableWrap.addEventListener("click", handleTableClick);
-  document.addEventListener("click", handleInfoWindowClose);
-
-  [elements.kakaoKey, elements.schoolName, elements.areaHint, elements.baseMonth, elements.senSourceUrl, elements.senProxyUrl].filter(Boolean).forEach((input) => {
-    input.addEventListener("change", saveSettings);
-  });
-  elements.kakaoKey?.addEventListener("input", updateKeyStatus);
-  elements.schoolName?.addEventListener("input", handleSchoolNameInput);
-  elements.schoolName?.addEventListener("blur", () => resolveSchoolRegionHint({ force: true }));
-  elements.schoolName?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      resolveSchoolRegionHint({ force: true });
-    }
-  });
-  elements.areaHint?.addEventListener("input", updateMapSettingStatus);
-
-  elements.resultTabs.addEventListener("click", (event) => {
-    const button = event.target.closest(".tab");
-    if (!button) return;
-    state.currentTab = button.dataset.tab;
-    $$(".tab").forEach((tab) => tab.classList.toggle("active", tab === button));
-    renderTable();
-  });
-
-  renderTabs();
-  updateSchoolStatus();
-}
-
-function getCurrentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function saveSettings() {
-  const userKakaoKey = elements.kakaoKey.value.trim();
-  if (userKakaoKey) localStorage.setItem("schoolCardMapKakaoKey", userKakaoKey);
-  else localStorage.removeItem("schoolCardMapKakaoKey");
-  localStorage.setItem("schoolCardMapSchoolName", elements.schoolName.value.trim());
-  // 지역 보조어는 학교 변경 시 오염을 막기 위해 저장하지 않습니다.
-  localStorage.setItem("schoolCardMapBaseMonth", elements.baseMonth.value.trim());
-  if (elements.senSourceUrl) localStorage.setItem("schoolCardMapSenSourceUrl", elements.senSourceUrl.value.trim());
-  // 자동수집 API는 /sen-fetch로 고정합니다. 사용자가 수정하거나 이전 값이 저장되지 않게 합니다.
-  updateMapSettingStatus();
-}
-
-function getEffectiveKakaoKey() {
-  return elements.kakaoKey?.value?.trim() || DEFAULT_KAKAO_JS_KEY;
-}
-
-function updateMapSettingStatus() {
-  updateKeyStatus();
-  updateRegionStatus();
-}
-
-function updateKeyStatus() {
-  if (!elements.keyStatus) return;
-  const hasKey = Boolean(getEffectiveKakaoKey());
-  const usingUserKey = Boolean(elements.kakaoKey?.value?.trim());
-  elements.keyStatus.textContent = hasKey
-    ? usingUserKey ? "지도 API 사용자 키 적용" : "지도 API 설정 완료"
-    : "지도 API 키 미설정";
-  elements.keyStatus.classList.toggle("ready", hasKey);
-}
-
-function updateRegionStatus() {
-  if (!elements.regionStatus) return;
-  const region = getEffectiveAreaHint();
-  const sourceText = getRegionSourceText();
-  elements.regionStatus.textContent = `검색 지역: ${region}${sourceText ? ` · ${sourceText}` : ""}`;
-  elements.regionStatus.classList.toggle("ready", Boolean(region));
-}
-
-function getRegionSourceText() {
-  if (elements.areaHint?.value?.trim()) return "직접 입력";
-  if (state.schoolRegionSource === "kakao") return "학교 위치 확인";
-  if (state.schoolRegionSource === "rule") return "학교명 추정";
-  return "기본값";
-}
-
-function updateSchoolStatus(message, tone = "neutral") {
-  if (!elements.schoolStatus) return;
-  const schoolName = elements.schoolName?.value?.trim();
-  const region = getEffectiveAreaHint();
-  const defaultMessage = schoolName
-    ? `${region} 기준으로 검색합니다.`
-    : "학교 확인 전 · 학교명을 입력하면 검색 지역을 자동으로 잡습니다.";
-  elements.schoolStatus.textContent = message || defaultMessage;
-  elements.schoolStatus.dataset.tone = tone;
-}
-
-function handleSchoolNameInput() {
-  state.schoolRegionHint = "";
-  state.schoolRegionSource = "default";
-  if (elements.areaHint && !document.querySelector(".settings-details")?.open) {
-    elements.areaHint.value = "";
-  }
-  updateMapSettingStatus();
-  updateSchoolStatus();
-  clearTimeout(state.schoolCheckTimer);
-  state.schoolCheckTimer = setTimeout(() => resolveSchoolRegionHint({ force: false }), 600);
-}
-
-function updateNextAction(mode = state.mode) {
-  if (!elements.nextActionPanel) return;
-  const hasRows = state.rawRows.length > 0;
-  elements.nextActionPanel.classList.toggle("hidden", !hasRows);
-  if (!hasRows) return;
-
-  const schoolName = elements.schoolName.value.trim() || "선택한 학교";
-  const baseMonth = formatDisplayMonth(elements.baseMonth.value.trim());
-  const targetAmount = state.visibleRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const excludedAmount = state.excludedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const mappedRows = getMappedRows();
-  const mappedAmount = mappedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-
-  if (mode === "mapped") {
-    elements.nextActionBadge.textContent = "지도 생성 완료";
-    elements.nextActionTitle.textContent = `${schoolName} ${baseMonth} 사용처 지도를 만들었습니다.`;
-    elements.nextActionDesc.textContent = `표시 완료 ${mappedRows.length}건 · ${formatWon(mappedAmount)}, 위치 확인 필요 ${state.pendingRows.length}건입니다. 자료가 바뀌면 지도를 다시 만들 수 있습니다.`;
-    elements.ctaMapBtn.innerHTML = `<small>다시</small> 사용처 지도 다시 만들기`;
-    elements.nextActionPanel.classList.add("complete");
-  } else {
-    elements.nextActionBadge.textContent = "다음 단계";
-    elements.nextActionTitle.textContent = `${schoolName} ${baseMonth} 자료 확인이 완료되었습니다.`;
-    elements.nextActionDesc.textContent = `전체 ${state.rawRows.length}건 중 지도 대상 ${state.visibleRows.length}건 · ${formatWon(targetAmount)}, 지도 제외 ${state.excludedRows.length}건 · ${formatWon(excludedAmount)}입니다. 위의 [사용처 지도 만들기] 버튼으로 지도까지 이어서 만들 수 있습니다.`;
-    elements.ctaMapBtn.innerHTML = `<small>지도</small> 사용처 지도 만들기`;
-    elements.nextActionPanel.classList.remove("complete");
-  }
-}
-
-function hideNextAction() {
-  elements.nextActionPanel?.classList.add("hidden");
-}
-
-function formatDisplayMonth(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.length >= 6) return `${digits.slice(0, 4)}년 ${Number(digits.slice(4, 6))}월`;
-  if (/^\d{4}-\d{2}$/.test(value)) {
-    const [year, month] = value.split("-");
-    return `${year}년 ${Number(month)}월`;
-  }
-  return value || "선택월";
-}
-
-function insertSample() {
-  elements.schoolName.value = elements.schoolName.value || "대청중학교";
-  // 지역 보조어는 학교명으로 자동 추정됩니다. 사용자가 직접 입력한 값은 그대로 둡니다.
-  elements.baseMonth.value = "2026-02";
-  elements.rawInput.value = SAMPLE_TEXT;
-  saveSettings();
-  setStatus("예시 자료를 넣었습니다. [사용처 지도 만들기]를 누르면 자료 확인과 지도 생성이 이어서 실행됩니다.");
-}
-
-function clearAll() {
-  if (!confirm("입력한 표와 결과를 모두 지울까요?")) return;
-  elements.rawInput.value = "";
-  state.rawRows = [];
-  state.visibleRows = [];
-  state.excludedRows = [];
-  state.pendingRows = [];
-  state.groupedPlaces = [];
-  state.mode = "empty";
-  state.currentTab = "target";
-  clearMarkers();
-  setMapNotice(false);
-  renderTabs();
-  renderSummary();
-  renderTable();
-  hideNextAction();
-  setStatus("초기화했습니다.");
-}
-
-async function run({ withMap, skipResolveRegion = false }) {
-  saveSettings();
-  setStatus("표를 정리하는 중입니다...");
-  const parsedRows = parsePastedTable(elements.rawInput.value);
-  if (parsedRows.length === 0) {
-    setStatus("인식할 수 있는 표가 없습니다. 탭으로 구분된 표를 붙여넣어 주세요.", true);
-    return;
-  }
-
-  const classified = classifyRows(parsedRows);
-  state.rawRows = classified.rawRows;
-  state.visibleRows = classified.visibleRows;
-  state.excludedRows = classified.excludedRows;
-  state.pendingRows = [];
-  state.groupedPlaces = groupByPlace(state.visibleRows);
-  clearMarkers();
-
-  if (!withMap) {
-    state.mode = "parsed";
-    state.currentTab = "target";
-    renderTabs();
-    renderSummary();
-    renderTable();
-    setMapNotice(true);
-    updateNextAction("parsed");
-    setStatus("자료 확인이 완료되었습니다. 사용처 지도 만들기를 누르면 사용처 위치를 검색합니다.");
-    return;
-  }
-
-  if (!skipResolveRegion) {
-    await resolveSchoolRegionHint({ force: false });
-  }
-
-  const key = getEffectiveKakaoKey();
-  if (!key) {
-    state.mode = "parsed";
-    state.currentTab = "target";
-    renderTabs();
-    renderSummary();
-    renderTable();
-    setMapNotice(true);
-    updateNextAction("parsed");
-    setStatus("지도 키 문제로 지도를 표시하지 못했습니다. 고급 설정에서 카카오 JavaScript 키를 확인해 주세요.", true);
-    return;
-  }
-
-  try {
-    state.mode = "mapped";
-    state.currentTab = "mapped";
-    renderTabs();
-    renderSummary();
-    renderTable();
-    setMapNotice(false);
-    setStatus("카카오맵을 불러오는 중입니다...");
-    await loadKakaoMap(key);
-    initMapIfNeeded();
-    await searchPlacesAndRenderMarkers();
-    renderSummary();
-    renderTable();
-    updateNextAction("mapped");
-    const mappedGroups = getMappedGroups();
-    const message = state.pendingRows.length
-      ? `지도 생성이 완료되었습니다. 표시 완료 ${mappedGroups.length}곳, 위치 확인 필요 ${state.pendingRows.length}건입니다.`
-      : `지도 생성이 완료되었습니다. 표시 완료 ${mappedGroups.length}곳입니다.`;
-    setStatus(message);
-  } catch (error) {
-    console.error(error);
-    state.mode = "parsed";
-    state.currentTab = "target";
-    renderTabs();
-    renderSummary();
-    renderTable();
-    setMapNotice(true);
-    updateNextAction("parsed");
-    setStatus(error.message || "지도 표시 중 오류가 발생했습니다.", true);
-    throw error;
-  }
-}
-
-
-function setWorkflowStep(activeStep, tone = "active") {
-  if (!elements.workflowSteps) return;
-  const order = ["school", "fetch", "parse", "map", "done"];
-  const activeIndex = order.indexOf(activeStep);
-  elements.workflowSteps.querySelectorAll("li").forEach((item) => {
-    const index = order.indexOf(item.dataset.step);
-    item.classList.remove("active", "done", "error");
-    if (tone === "error" && item.dataset.step === activeStep) item.classList.add("error");
-    else if (index >= 0 && activeIndex >= 0 && index < activeIndex) item.classList.add("done");
-    else if (item.dataset.step === activeStep) item.classList.add(tone === "done" ? "done" : "active");
-  });
-}
-
-function resetWorkflowSteps() {
-  if (!elements.workflowSteps) return;
-  elements.workflowSteps.querySelectorAll("li").forEach((item) => item.classList.remove("active", "done", "error"));
-}
-
-function setMainButtonLoading(isLoading) {
-  state.workflowRunning = isLoading;
-  [elements.fetchSenBtn, elements.ctaMapBtn].filter(Boolean).forEach((button) => {
-    button.disabled = isLoading;
-    button.classList.toggle("is-loading", isLoading);
-  });
-  if (elements.fetchSenBtn) {
-    elements.fetchSenBtn.innerHTML = isLoading
-      ? `<small>진행</small> 만드는 중...`
-      : `<small>시작</small> 사용처 지도 만들기`;
-  }
-}
-
-async function runFullWorkflow() {
-  if (state.workflowRunning) return;
-  saveSettings();
-  const schoolName = elements.schoolName.value.trim();
-  const baseMonth = elements.baseMonth.value.trim();
-
-  if (!schoolName) {
-    setAutoStatus("학교명을 입력해 주세요.", true);
-    updateSchoolStatus("학교명을 입력해 주세요.", "error");
-    return;
-  }
-  if (!baseMonth) {
-    setAutoStatus("기준월을 선택해 주세요.", true);
-    return;
-  }
-
-  try {
-    setMainButtonLoading(true);
-    setWorkflowStep("school");
-    setAutoStatus("학교 지역을 확인하는 중입니다...");
-    const region = await resolveSchoolRegionHint({ force: true });
-    setAutoStatus(`검색 지역을 ${region} 기준으로 설정했습니다. 서울교육청 자료를 가져오는 중입니다...`);
-
-    setWorkflowStep("fetch");
-    const rows = await collectSenRows({ schoolName, baseMonth });
-    if (!rows.length) {
-      setWorkflowStep("fetch", "error");
-      setAutoStatus("해당 학교명과 기준월의 업무추진비 공개자료를 찾지 못했습니다. 학교명 또는 기준월을 확인해 주세요.", true);
-      return;
-    }
-
-    elements.rawInput.value = rowsToTsv(rows);
-    setWorkflowStep("parse");
-    setAutoStatus(`${rows.length}건을 가져왔습니다. 지도 대상과 제외 항목을 정리하는 중입니다...`);
-
-    setWorkflowStep("map");
-    await run({ withMap: true, skipResolveRegion: true });
-    setWorkflowStep("done", "done");
-    setAutoStatus(`${schoolName} ${formatDisplayMonth(baseMonth)} 사용처 지도를 만들었습니다.`);
-  } catch (error) {
-    console.error(error);
-    setWorkflowStep("map", "error");
-    setAutoStatus(formatAutoFetchError(error), true);
-    setStatus(error.message || "사용처 지도 만들기 중 오류가 발생했습니다.", true);
-  } finally {
-    setMainButtonLoading(false);
-  }
-}
-
-function setAutoStatus(message, isError = false) {
-  if (!elements.autoStatusText) return;
-  elements.autoStatusText.textContent = message;
-  elements.autoStatusText.style.color = isError ? "#c2410c" : "#687386";
-}
-
-function formatAutoFetchError(error) {
-  const base = error?.message || "자동 불러오기 중 오류가 발생했습니다.";
-  const type = error?.remoteType || error?.name || "";
-
-  if (type === "LookupError" || base.includes("상세보기 정보를 찾지 못했습니다")) {
-    if (/20\d{4}/.test(base)) {
-      return `${base} 해당 기준월의 업무추진비 공개자료가 없거나 학교명이 다를 수 있습니다. 다른 기준월 또는 정확한 학교명을 확인해 주세요. 자동 불러오기가 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
-    }
-    return `${base} 해당 학교명을 찾지 못했습니다. 학교명을 정확히 입력했는지 확인해 주세요. 자동 불러오기가 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
-  }
-
-  if (type === "ValueError") {
-    return `${base} 학교명과 기준월을 확인해 주세요.`;
-  }
-
-  if (base.includes("카카오") || base.includes("지도") || base.includes("SDK")) {
-    return `${base} 카카오 개발자센터의 JavaScript SDK 도메인에 현재 Vercel 주소가 등록되어 있는지 확인해 주세요.`;
-  }
-
-  if (base.includes("상세표") || base.includes("읽지 못")) {
-    return `${base} 자료는 가져왔지만 상세표를 읽지 못했습니다. 공개페이지 구조가 변경되었을 수 있습니다. 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
-  }
-
-  return `${base} 자동 불러오기는 Vercel 배포 주소 또는 로컬 server.py 실행 주소에서 동작합니다. 현재 주소와 인터넷 연결을 확인해 주세요. 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.`;
-}
-
-function renderAutoDebug(info = {}) {
-  if (!elements.autoDebugText) return;
-  const month = formatCollectedMonth(info.baseMonth || "");
-  const debug = info.debug || {};
-  const detail = info.detail || {};
-  const pages = Array.isArray(debug.detailPages)
-    ? debug.detailPages.map((page) => `${page.detPageIndex}페이지: ${page.rows}건`).join("\n")
-    : "-";
-  elements.autoDebugText.textContent = [
-    "요청 방식: POST",
-    `목록 URL: ${SEN_DEFAULT_URL}`,
-    `상세 URL: ${SEN_DETAIL_URL}`,
-    `기준월 변환값: ${month} → ${String(info.baseMonth || "").replace(/\D/g, "") || "-"}`,
-    `school_code: ${detail.school_code || "-"}`,
-    `neis_cd: ${detail.neis_cd || "-"}`,
-    `stdr_month: ${detail.stdr_month || "-"}`,
-    `목록 페이지 시도: ${(debug.listPagesTried || []).join(", ") || "-"}`,
-    `상세 페이지 수: ${debug.pageCount || "-"}`,
-    "상세 페이지 수집:",
-    pages,
-    `수집된 원본 행 수: ${info.rowCount ?? debug.rowCount ?? "-"}`,
-  ].join("\n");
-}
-
-async function fetchSenBudgetData() {
-  saveSettings();
-  const schoolName = elements.schoolName.value.trim();
-  const baseMonth = elements.baseMonth.value.trim();
-
-  if (!schoolName) {
-    setAutoStatus("학교명을 입력해 주세요.", true);
-    return;
-  }
-  if (!baseMonth) {
-    setAutoStatus("기준월을 선택해 주세요.", true);
-    return;
-  }
-
-  try {
-    setAutoStatus(`${schoolName} / ${baseMonth} 기준으로 서울교육청 공개자료를 가져오는 중입니다...`);
-    const rows = await collectSenRows({ schoolName, baseMonth });
-    if (!rows.length) {
-      setAutoStatus("해당 학교명과 기준월의 업무추진비 공개자료를 찾지 못했습니다. 학교명 또는 기준월을 확인해 주세요. 자동 불러오기가 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.", true);
-      return;
-    }
-
-    elements.rawInput.value = rowsToTsv(rows);
-    setAutoStatus(`${rows.length}건을 가져왔습니다. 아래 붙여넣기 칸에 자동 입력했고 자료 확인을 실행했습니다.`);
-    await run({ withMap: false });
-    setStatus("자료를 가져왔습니다. [사용처 지도 만들기]를 누르면 위치 검색까지 이어서 실행됩니다.");
-  } catch (error) {
-    console.error(error);
-    setAutoStatus(formatAutoFetchError(error), true);
-  }
-}
-
-async function collectSenRows({ schoolName, baseMonth }) {
-  const endpoint = AUTO_FETCH_ENDPOINT;
-  if (elements.senProxyUrl) elements.senProxyUrl.value = AUTO_FETCH_ENDPOINT;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ schoolName, baseMonth }),
-  });
-  let data = null;
-  try {
-    data = await response.json();
-  } catch (error) {
-    throw new Error(`자동수집 응답을 읽지 못했습니다. ${response.status}`);
-  }
-  if (!response.ok || !data?.ok) {
-    const message = data?.error || `자동 불러오기 요청 실패 ${response.status}`;
-    const error = new Error(message);
-    error.remoteType = data?.type || "NetworkError";
-    error.status = response.status;
-    throw error;
-  }
-  const rows = Array.isArray(data.rows) ? data.rows : [];
-  const debug = data.debug || {};
-  const detail = data.detail || {};
-  renderAutoDebug({ schoolName: data.schoolName || schoolName, baseMonth: data.baseMonth || baseMonth, debug, detail, rowCount: rows.length });
-  const pageInfo = Array.isArray(debug.detailPages)
-    ? debug.detailPages.map((page) => `${page.detPageIndex}p ${page.rows}건`).join(", ")
-    : "";
-  setAutoStatus(
-    `${data.schoolName || schoolName} ${formatCollectedMonth(data.baseMonth || baseMonth)} 자동수집 완료: ${rows.length}건` +
-    (pageInfo ? ` · 상세 ${pageInfo}` : "") +
-    (detail.school_code ? ` · school_code ${detail.school_code}` : "")
-  );
-  return rows.map((row, index) => ({
-    id: index + 1,
-    date: row.date || "",
-    place: row.place || "",
-    amount: Number(row.amount || 0),
-    purpose: row.purpose || "",
-    target: row.target || "",
-    time: row.time || "",
-    approver: row.approver || "",
-  }));
-}
-
-function formatCollectedMonth(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.length >= 6) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}`;
-  return value || "";
-}
-
-function normalizeSenUrl(url) {
-  const value = cleanCell(url) || SEN_DEFAULT_URL;
-  try {
-    return new URL(value, SEN_DEFAULT_URL).toString();
-  } catch {
-    return SEN_DEFAULT_URL;
-  }
-}
-
-function makeSenListCandidateUrls(sourceUrl, schoolName, baseMonth) {
-  const ym = (baseMonth || "").replace("-", "");
-  const url = new URL(sourceUrl, SEN_DEFAULT_URL);
-  const base = `${url.origin}${url.pathname}`;
-  const encodedSchool = schoolName || "";
-  const candidates = [];
-  const paramSets = [
-    // 서울교육청 화면은 '검색영역: 전체/기준월/관할기관/기관명' 구조라서
-    // 학교명과 기준월을 동시에 넣는 후보를 여러 벌 시도한다.
-    { searchKeyword: encodedSchool, searchCondition: "all", searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchCondition: "기관명", searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchCondition: "insttNm", searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, srchKeyword: encodedSchool, searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchWrd: encodedSchool, searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchText: encodedSchool, searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchCnd: "schulNm", searchYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchCondition: "school", yyymm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, yyyyMm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, basYm: ym, pageIndex: "1" },
-    { searchKeyword: encodedSchool, searchMonth: ym, pageIndex: "1" },
-    { searchKeyword: `${ym} ${encodedSchool}`, searchCondition: "all", pageIndex: "1" },
-    { searchKeyword: encodedSchool, pageIndex: "1" },
-  ];
-
-  // 원본 무파라미터 URL은 전체 목록이라 마지막 후보로만 둔다.
-  for (const params of paramSets) {
-    const item = new URL(base);
-    for (const [key, value] of Object.entries(params)) {
-      if (value) item.searchParams.set(key, value);
-    }
-    candidates.push(item.toString());
-  }
-  candidates.push(sourceUrl);
-  return unique(candidates);
-}
-
-function rowsToTsv(rows) {
-  const header = ["번호", "집행일자", "집행장소", "집행금액", "집행목적", "집행대상", "집행시간", "승인자"];
-  const body = rows.map((row, index) => [
-    rows.length - index,
-    row.date,
-    row.place,
-    formatPlainAmount(row.amount),
-    row.purpose,
-    row.target || "",
-    row.time || "",
-    row.approver || "",
-  ].map((cell) => String(cell ?? "").replace(/\t/g, " ").replace(/\n/g, " ")).join("\t"));
-  return [header.join("\t"), ...body].join("\n");
-}
-
-function formatPlainAmount(value) {
-  return Number(value || 0).toLocaleString("ko-KR");
-}
-
-function unique(items) {
-  return Array.from(new Set(items.filter(Boolean)));
-}
-
-function parsePastedTable(text) {
-  const cleaned = (text || "").replace(/\r/g, "").trim();
-  if (!cleaned) return [];
-
-  const lines = cleaned.split("\n").map((line) => line.trim()).filter(Boolean);
-  const rows = [];
-  let headerMap = null;
-
-  for (const line of lines) {
-    const cells = splitLine(line);
-    if (cells.length < 4) continue;
-
-    if (looksLikeHeader(cells)) {
-      headerMap = makeHeaderMap(cells);
-      continue;
-    }
-
-    const row = makeRowFromCells(cells, headerMap);
-    if (row && (row.date || row.place || row.amount || row.purpose)) rows.push(row);
-  }
-
-  return rows.map((row, index) => ({ ...row, id: index + 1 }));
-}
-
-function splitLine(line) {
-  if (line.includes("\t")) return line.split("\t").map(cleanCell);
-  if (line.includes(",") && !line.includes("집행목적")) return splitCsvLine(line).map(cleanCell);
-  return line.split(/\s{2,}/).map(cleanCell);
-}
-
-function splitCsvLine(line) {
-  const result = [];
-  let current = "";
-  let inQuote = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (char === '"') {
-      inQuote = !inQuote;
-    } else if (char === "," && !inQuote) {
-      result.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-  return result;
-}
-
-function cleanCell(value) {
-  return String(value || "").replace(/\u00a0/g, " ").trim();
-}
-
-function looksLikeHeader(cells) {
-  const joined = cells.join(" ");
-  return joined.includes("집행일자") && joined.includes("집행장소") && joined.includes("집행금액");
-}
-
-function makeHeaderMap(cells) {
-  const map = {};
-  cells.forEach((cell, index) => {
-    const key = cell.replace(/\s/g, "");
-    if (key.includes("집행일자")) map.date = index;
-    if (key.includes("집행장소")) map.place = index;
-    if (key.includes("집행금액")) map.amount = index;
-    if (key.includes("집행목적")) map.purpose = index;
-    if (key.includes("집행대상")) map.target = index;
-    if (key.includes("집행시간")) map.time = index;
-    if (key.includes("승인자")) map.approver = index;
-  });
-  return map;
-}
-
-function makeRowFromCells(cells, headerMap) {
-  if (headerMap && Object.keys(headerMap).length) {
-    return {
-      date: normalizeDate(cells[headerMap.date]),
-      place: cleanPlace(cells[headerMap.place]),
-      amount: parseAmount(cells[headerMap.amount]),
-      purpose: cleanCell(cells[headerMap.purpose]),
-      target: cleanCell(cells[headerMap.target]),
-      time: cleanCell(cells[headerMap.time]),
-      approver: cleanCell(cells[headerMap.approver]),
-    };
-  }
-
-  const offset = isSequenceNumber(cells[0]) ? 1 : 0;
-  return {
-    date: normalizeDate(cells[offset]),
-    place: cleanPlace(cells[offset + 1]),
-    amount: parseAmount(cells[offset + 2]),
-    purpose: cleanCell(cells[offset + 3]),
-    target: cleanCell(cells[offset + 4]),
-    time: cleanCell(cells[offset + 5]),
-    approver: cleanCell(cells[offset + 6]),
-  };
-}
-
-function isSequenceNumber(value) {
-  return /^\d+$/.test(cleanCell(value));
-}
-
-function normalizeDate(value) {
-  const text = cleanCell(value);
-  const match = text.match(/(\d{4})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})/);
-  if (!match) return text;
-  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
-}
-
-function cleanPlace(value) {
-  return cleanCell(value).replace(/^\[?카드\]?\s*/i, "").replace(/^[-–—]+$/, "");
-}
-
-function parseAmount(value) {
-  const number = cleanCell(value).replace(/[^0-9-]/g, "");
-  return number ? Number(number) : 0;
-}
-
-function classifyRows(rows) {
-  const rawRows = [];
-  const visibleRows = [];
-  const excludedRows = [];
-
-  for (const row of rows) {
-    const reason = getExcludeReason(row);
-    const normalized = {
-      ...row,
-      mapVisible: !reason,
-      excludeReason: reason,
-      placeKey: normalizePlaceKey(row.place),
-    };
-    rawRows.push(normalized);
-    if (reason) excludedRows.push(normalized);
-    else visibleRows.push(normalized);
-  }
-
-  return { rawRows, visibleRows, excludedRows };
-}
-
-function getExcludeReason(row) {
-  const purpose = row.purpose || "";
-  const place = row.place || "";
-
-  const purposeKeyword = PURPOSE_EXCLUDE_KEYWORDS.find((keyword) => purpose.includes(keyword));
-  if (purposeKeyword) return `집행목적 제외: ${purposeKeyword}`;
-
-  const placeKeyword = PLACE_EXCLUDE_KEYWORDS.find((keyword) => place.includes(keyword));
-  if (placeKeyword) return `집행장소 제외: ${placeKeyword}`;
-
-  if (!place || place === "-" || place === "없음") return "집행장소 없음";
-  return "";
-}
-
-function normalizePlaceKey(place) {
-  return cleanCell(place)
-    .replace(/주식회사/g, "")
-    .replace(/\(주\)|㈜/g, "")
-    .replace(/[()]/g, "")
-    .replace(/[&·]/g, "")
-    .replace(/\s+/g, "")
-    .toLowerCase();
-}
-
-function groupByPlace(rows) {
-  const map = new Map();
-  for (const row of rows) {
-    const key = row.placeKey || normalizePlaceKey(row.place);
-    if (!map.has(key)) {
-      map.set(key, {
-        key,
-        place: row.place,
-        rows: [],
-        amount: 0,
-        lat: null,
-        lng: null,
-        address: "",
-        candidateCount: 0,
-        status: "ready",
-      });
-    }
-    const group = map.get(key);
-    group.rows.push(row);
-    group.amount += row.amount || 0;
-  }
-  return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
-}
-
-function renderTabs() {
-  const tabs = state.mode === "mapped"
-    ? [
-        ["mapped", "표시 완료"],
-        ["pending", "위치 확인"],
-        ["excluded", "지도 제외"],
-      ]
-    : [
-        ["target", "지도 대상"],
-        ["excluded", "지도 제외"],
-        ["all", "전체 정제표"],
-      ];
-
-  if (!tabs.some(([key]) => key === state.currentTab)) state.currentTab = tabs[0][0];
-  elements.resultTabs.innerHTML = tabs.map(([key, label]) =>
-    `<button class="tab ${key === state.currentTab ? "active" : ""}" data-tab="${key}" type="button">${label}</button>`
-  ).join("");
-
-  if (state.mode === "mapped") {
-    elements.tableHint.textContent = "표시 완료 행을 누르면 지도에서 해당 사용처로 이동합니다.";
-  } else if (state.mode === "parsed") {
-    elements.tableHint.textContent = "자료 확인 상태입니다. 위의 [사용처 지도 만들기] 버튼으로 지도까지 한 번에 만들 수 있습니다.";
-  } else {
-    elements.tableHint.textContent = "[사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 순서대로 진행됩니다.";
-  }
-}
-
-function setMapNotice(show) {
-  if (!elements.mapNotice) return;
-  elements.mapNotice.classList.toggle("hidden", !show);
-  if (show && !state.map) {
-    elements.map.classList.add("map-placeholder");
-    elements.map.innerHTML = `<div><strong>아직 지도를 만들지 않았습니다.</strong><p>자료를 확인한 뒤 [사용처 지도 만들기]를 누르면 사용처 위치를 검색합니다.</p></div>`;
-    elements.mapNotice.classList.add("hidden");
-  }
-}
-
-function renderSummary() {
-  const totalAmount = state.rawRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const targetAmount = state.visibleRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const mappedRows = getMappedRows();
-  const mappedAmount = mappedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const excludedAmount = state.excludedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const hasSearchedMap = state.mode === "mapped";
-
-  $("#totalCount").textContent = `${state.rawRows.length}`;
-  $("#totalAmount").textContent = formatWon(totalAmount);
-  $("#targetCount").textContent = `${state.visibleRows.length}건 · ${formatWon(targetAmount)}`;
-  $("#mappedCount").textContent = hasSearchedMap ? `${mappedRows.length}건 · ${formatWon(mappedAmount)}` : "검색 전";
-  $("#pendingCount").textContent = hasSearchedMap ? `${state.pendingRows.length}건` : "검색 전";
-  $("#excludedCount").textContent = `${state.excludedRows.length}건 · ${formatWon(excludedAmount)}`;
-
-  const mappedCard = $("#mappedCount")?.closest(".summary-card");
-  const pendingCard = $("#pendingCount")?.closest(".summary-card");
-  mappedCard?.classList.toggle("search-before", !hasSearchedMap);
-  pendingCard?.classList.toggle("search-before", !hasSearchedMap);
-}
-
-function getGroupForRow(row) {
-  return state.groupedPlaces.find((item) => item.key === row.placeKey);
-}
-
-function getMappedRows() {
-  return state.visibleRows.filter((row) => getGroupForRow(row)?.status === "mapped");
-}
-
-function getMappedGroups() {
-  return state.groupedPlaces.filter((group) => group.status === "mapped");
-}
-
-function renderTable() {
-  const tab = state.currentTab;
-  let rows = [];
-  let columns = [];
-  let colGroup = "";
-
-  if (state.mode === "mapped") {
-    if (tab === "mapped") {
-      rows = getMappedRows();
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "지도상태"];
-      colGroup = renderColGroup();
-    } else if (tab === "excluded") {
-      rows = state.excludedRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
-      colGroup = renderColGroup();
-    } else {
-      rows = state.pendingRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "확인내용"];
-      colGroup = renderColGroup();
-    }
-  } else {
-    if (tab === "target") {
-      rows = state.visibleRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "상태"];
-      colGroup = renderColGroup();
-    } else if (tab === "excluded") {
-      rows = state.excludedRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "제외사유"];
-      colGroup = renderColGroup();
-    } else {
-      rows = state.rawRows;
-      columns = ["집행일자", "집행장소", "집행금액", "집행목적", "정제결과"];
-      colGroup = renderColGroup();
-    }
-  }
-
-  if (!rows.length) {
-    let message = "해당 내역이 없습니다.";
-    if (!state.rawRows.length) message = "아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 사용처 지도 만들기를 눌러주세요.";
-    else if (state.mode === "mapped" && tab === "mapped") message = "아직 표시 완료된 장소가 없습니다. 위치 확인 내역을 확인해 주세요.";
-    elements.tableWrap.className = "table-wrap empty-state";
-    elements.tableWrap.innerHTML = `<p>${escapeHtml(message)}</p>`;
-    return;
-  }
-
-  elements.tableWrap.className = "table-wrap";
-  const body = rows.map((row) => {
-    const group = getGroupForRow(row);
-    const canJump = state.mode === "mapped" && tab === "mapped" && group?.status === "mapped";
-    const status = getRowStatus(row, tab);
-    return `<tr class="${canJump ? "map-row" : ""}" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}"` : ""}>
-      <td>${escapeHtml(row.date)}</td>
-      <td><strong>${escapeHtml(row.place)}</strong></td>
-      <td class="amount">${formatWon(row.amount)}</td>
-      <td><div class="purpose-cell" title="${escapeHtml(row.purpose)}">${escapeHtml(row.purpose)}</div></td>
-      <td>${renderStatusBadge(status, tab, canJump, row.placeKey)}</td>
-    </tr>`;
-  }).join("");
-
-  elements.tableWrap.innerHTML = `<table>
-    ${colGroup}
-    <thead><tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr></thead>
-    <tbody>${body}</tbody>
-  </table>`;
-}
-
-function renderColGroup() {
-  return `<colgroup>
-    <col class="col-date" />
-    <col class="col-place" />
-    <col class="col-amount" />
-    <col />
-    <col class="col-action" />
-  </colgroup>`;
-}
-
-function getRowStatus(row, tab) {
-  if (state.mode !== "mapped") {
-    if (tab === "target") return "지도 대상";
-    if (tab === "excluded") return row.excludeReason;
-    return row.excludeReason || "지도 대상";
-  }
-
-  if (tab === "mapped") return "표시 완료";
-  if (tab === "excluded") return row.excludeReason;
-  return row.locationStatus || "장소 검색 실패";
-}
-
-function renderStatusBadge(text, tab, canJump = false, placeKey = "") {
-  let className = "";
-  if (tab === "excluded") className = "gray";
-  if (tab === "pending") className = "warn";
-
-  if (canJump) {
-    const group = state.groupedPlaces.find((item) => item.key === placeKey);
-    const candidateText = group?.candidateCount > 1 ? ` · 후보 ${group.candidateCount}개` : "";
-    const candidateTitle = group?.candidateCount > 1 ? `후보 ${group.candidateCount}개 중 선택됨` : "지도에 표시 완료";
-    return `<span class="badge" title="${escapeHtml(candidateTitle)}">표시 완료${escapeHtml(candidateText)}</span>`;
-  }
-  return `<span class="badge ${className}">${escapeHtml(text || "-")}</span>`;
-}
-
-function handleInfoWindowClose(event) {
-  const button = event.target.closest(".info-close");
-  if (!button) return;
-  event.preventDefault();
-  event.stopPropagation();
-  const placeKey = button.dataset.placeKey;
-  closeInfoWindow(placeKey);
-}
-
-function closeInfoWindow(placeKey) {
-  if (placeKey) {
-    const group = state.groupedPlaces.find((item) => item.key === placeKey);
-    group?.infowindow?.close();
-    setStatus(`${group?.place || "마커"} 정보창을 닫았습니다.`);
-    return;
-  }
-  state.infowindows.forEach((item) => item.close());
-}
-
-function handleTableClick(event) {
-  const target = event.target.closest("[data-place-key]");
-  if (!target) return;
-  const placeKey = target.dataset.placeKey;
-  focusPlaceOnMap(placeKey);
-}
-
-function focusPlaceOnMap(placeKey) {
-  const group = state.groupedPlaces.find((item) => item.key === placeKey && item.status === "mapped");
-  if (!group || !state.map || !group.marker) return;
-
-  state.infowindows.forEach((item) => item.close());
-  const position = group.marker.getPosition();
-  state.map.panTo(position);
-  if (state.map.getLevel() > 4) state.map.setLevel(4);
-  group.infowindow?.open(state.map, group.marker);
-
-  elements.tableWrap.querySelectorAll("tr.row-focus").forEach((row) => row.classList.remove("row-focus"));
-  elements.tableWrap.querySelectorAll(`tr[data-place-key="${CSS.escape(placeKey)}"]`).forEach((row) => row.classList.add("row-focus"));
-  setStatus(`${group.place} 위치로 이동했습니다.`);
-}
-
-function formatWon(value) {
-  return `${Number(value || 0).toLocaleString("ko-KR")}원`;
-}
-
-function setStatus(message, isError = false) {
-  elements.statusText.textContent = message;
-  elements.statusText.style.color = isError ? "#c2410c" : "#687386";
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function loadKakaoMap(key) {
-  return new Promise((resolve, reject) => {
-    if (window.kakao && window.kakao.maps && state.kakaoLoaded) {
-      resolve();
-      return;
-    }
-
-    const existing = document.querySelector("script[data-kakao-map]");
-    if (existing) existing.remove();
-
-    const script = document.createElement("script");
-    script.dataset.kakaoMap = "true";
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=services`;
-    script.async = true;
-    script.onload = () => {
-      if (!window.kakao || !window.kakao.maps) {
-        reject(new Error("카카오맵 SDK를 불러오지 못했습니다. JavaScript 키와 도메인 등록을 확인해 주세요."));
-        return;
-      }
-      window.kakao.maps.load(() => {
-        state.kakaoLoaded = true;
-        resolve();
-      });
-    };
-    script.onerror = () => reject(new Error("카카오맵 SDK 로딩에 실패했습니다. 키와 네트워크 상태를 확인해 주세요."));
-    document.head.appendChild(script);
-  });
-}
-
-function initMapIfNeeded() {
-  if (state.map) return;
-  elements.map.classList.remove("map-placeholder");
-  elements.map.innerHTML = "";
-  const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780);
-  state.map = new kakao.maps.Map(elements.map, {
-    center: defaultCenter,
-    level: 6,
-  });
-}
-
-async function searchPlacesAndRenderMarkers() {
-  clearMarkers();
-  state.pendingRows = [];
-  const places = new kakao.maps.services.Places();
-  state.bounds = new kakao.maps.LatLngBounds();
-
-  for (const group of state.groupedPlaces) {
-    setStatus(`위치 검색 중: ${group.place}`);
-    const result = await searchPlaceForGroup(places, group);
-    if (result) {
-      group.lat = Number(result.y);
-      group.lng = Number(result.x);
-      group.address = result.road_address_name || result.address_name || "";
-      group.searchQuery = result.searchQuery || "";
-      group.candidateCount = result.candidateCount || 1;
-      group.status = "mapped";
-      createMarker(group);
-    } else {
-      group.status = "pending";
-      for (const row of group.rows) {
-        state.pendingRows.push({ ...row, locationStatus: `장소 검색 실패 · ${getEffectiveAreaHint()} 기준` });
-      }
-    }
-  }
-
-  fitMapToMarkers();
-}
-
-function searchPlaceForGroup(places, group) {
-  const schoolName = elements.schoolName.value.trim();
-  const areaHint = getEffectiveAreaHint();
-  const broadHint = getBroadAreaHint(areaHint);
-  const placeQueries = makePlaceSearchNames(group.place);
-  const prefixes = uniqueValues([areaHint, broadHint, schoolName, ""]);
-  const queries = [];
-
-  for (const place of placeQueries) {
-    for (const prefix of prefixes) {
-      const query = normalizeSearchQuery([prefix, place].filter(Boolean).join(" "));
-      if (query && !queries.includes(query)) queries.push(query);
-    }
-  }
-
-  return tryQueries(places, queries, areaHint);
-}
-
-function uniqueValues(values) {
-  return values
-    .map((item) => String(item || "").trim())
-    .filter(Boolean)
-    .filter((item, index, array) => array.indexOf(item) === index);
-}
-
-function getEffectiveAreaHint() {
-  const userHint = normalizeAreaHint(elements.areaHint?.value?.trim() || "");
-  if (userHint) return userHint;
-  return state.schoolRegionHint || getSchoolRegionHint(elements.schoolName?.value?.trim() || "") || DEFAULT_REGION_HINT;
-}
-
-function getSchoolRegionHint(schoolName) {
-  const name = String(schoolName || "").replace(/\s+/g, "");
-  if (!name) return "";
-
-  for (const [schoolKey, region] of Object.entries(SCHOOL_REGION_OVERRIDES)) {
-    if (name === schoolKey || name.includes(schoolKey)) {
-      state.schoolRegionSource = "rule";
-      return region;
-    }
-  }
-
-  for (const district of SEOUL_DISTRICTS) {
-    const shortName = district.replace(/구$/, "");
-    if (name.includes(shortName)) {
-      state.schoolRegionSource = "rule";
-      return `서울특별시 ${district}`;
-    }
-  }
-  return "";
-}
-
-async function resolveSchoolRegionHint({ force = false } = {}) {
-  const userHint = normalizeAreaHint(elements.areaHint?.value?.trim() || "");
-  if (userHint) {
-    state.schoolRegionHint = userHint;
-    state.schoolRegionSource = "manual";
-    updateMapSettingStatus();
-    updateSchoolStatus(`${userHint} 기준으로 검색합니다.`, "ready");
-    return userHint;
-  }
-
-  const schoolName = elements.schoolName?.value?.trim() || "";
-  if (!schoolName) {
-    state.schoolRegionHint = "";
-    state.schoolRegionSource = "default";
-    updateMapSettingStatus();
-    updateSchoolStatus();
-    return DEFAULT_REGION_HINT;
-  }
-
-  const ruleHint = getSchoolRegionHint(schoolName);
-  if (ruleHint) {
-    state.schoolRegionHint = ruleHint;
-    state.schoolRegionSource = "rule";
-    updateMapSettingStatus();
-    updateSchoolStatus(`${ruleHint} 학교로 추정했습니다.`, "ready");
-    return ruleHint;
-  }
-
-  if (!force) {
-    state.schoolRegionHint = "";
-    state.schoolRegionSource = "default";
-    updateMapSettingStatus();
-    updateSchoolStatus(`${DEFAULT_REGION_HINT} 기준으로 우선 검색합니다.`, "neutral");
-    return DEFAULT_REGION_HINT;
-  }
-
-  try {
-    updateSchoolStatus(`${schoolName} 학교 위치 확인 중...`, "loading");
-    const key = getEffectiveKakaoKey();
-    if (!key) throw new Error("지도 키가 없습니다.");
-    await loadKakaoMap(key);
-    const kakaoHint = await findSchoolRegionWithKakao(schoolName);
-    if (kakaoHint) {
-      state.schoolRegionHint = kakaoHint;
-      state.schoolRegionSource = "kakao";
-      updateMapSettingStatus();
-      updateSchoolStatus(`${kakaoHint} 학교로 확인했습니다.`, "ready");
-      return kakaoHint;
-    }
-  } catch (error) {
-    console.warn("학교 지역 자동 확인 실패", error);
-  }
-
-  state.schoolRegionHint = DEFAULT_REGION_HINT;
-  state.schoolRegionSource = "default";
-  updateMapSettingStatus();
-  updateSchoolStatus(`학교 주소 확인은 실패했습니다. ${DEFAULT_REGION_HINT} 기준으로 검색합니다.`, "neutral");
-  return DEFAULT_REGION_HINT;
-}
-
-async function findSchoolRegionWithKakao(schoolName) {
-  if (!window.kakao?.maps?.services) return "";
-  const places = new kakao.maps.services.Places();
-  const queries = uniqueValues([`서울특별시 ${schoolName}`, `${schoolName} 학교`, schoolName]);
-  for (const query of queries) {
-    const docs = await keywordSearch(places, query);
-    const region = extractSeoulRegionFromPlaces(docs);
-    if (region) return region;
-  }
-  return "";
-}
-
-function extractSeoulRegionFromPlaces(docs) {
-  for (const item of docs || []) {
-    const address = `${item.road_address_name || ""} ${item.address_name || ""}`;
-    if (!address.includes("서울")) continue;
-    const match = address.match(/서울(?:특별시)?\s*([가-힣]+구)/);
-    if (match) return `서울특별시 ${match[1]}`;
-  }
-  return "";
-}
-
-function normalizeAreaHint(value) {
-  let hint = String(value || "").replace(/\s+/g, " ").trim();
-  if (!hint) return "";
-  if (/^서울\s/.test(hint)) hint = hint.replace(/^서울\s+/, "서울특별시 ");
-  if (/^[가-힣]+구$/.test(hint)) hint = `서울특별시 ${hint}`;
-  return hint;
-}
-
-function getBroadAreaHint(areaHint) {
-  const hint = String(areaHint || "");
-  if (hint.includes("서울")) return DEFAULT_REGION_HINT;
-  return "";
-}
-
-function normalizeSearchQuery(value) {
-  return String(value || "")
-    .replace(/[\[\]{}]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function makePlaceSearchNames(place) {
-  const original = cleanCell(place);
-  const variants = [original];
-  const noCorp = original
-    .replace(/주식회사/g, "")
-    .replace(/\(주\)|㈜/g, "")
-    .trim();
-  const spaced = noCorp
-    .replace(/[()]/g, " ")
-    .replace(/[&·]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const noBranchParen = noCorp.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
-
-  [noCorp, spaced, noBranchParen].forEach((item) => {
-    if (item && !variants.includes(item)) variants.push(item);
-  });
-  return variants;
-}
-
-async function tryQueries(places, queries, areaHint = "") {
-  for (const query of queries) {
-    const docs = await keywordSearch(places, query);
-    if (docs.length > 0) {
-      const picked = pickBestPlaceCandidate(docs, areaHint);
-      return { ...picked, candidateCount: docs.length, searchQuery: query };
-    }
-  }
-  return null;
-}
-
-function pickBestPlaceCandidate(docs, areaHint) {
-  const normalizedHint = String(areaHint || "").replace(/\s+/g, "");
-  const isSeoulSearch = normalizedHint.includes("서울");
-  const districtMatch = normalizedHint.match(/([가-힣]+구)/);
-  const district = districtMatch ? districtMatch[1] : "";
-
-  return [...docs].sort((a, b) => {
-    const scoreA = scorePlaceCandidate(a, { isSeoulSearch, district });
-    const scoreB = scorePlaceCandidate(b, { isSeoulSearch, district });
-    return scoreB - scoreA;
-  })[0];
-}
-
-function scorePlaceCandidate(item, { isSeoulSearch, district }) {
-  const address = `${item.road_address_name || ""} ${item.address_name || ""}`;
-  let score = 0;
-  if (isSeoulSearch && address.includes("서울")) score += 100;
-  if (district && address.includes(district)) score += 80;
-  if (item.category_group_code === "FD6") score += 8;
-  if (item.category_name?.includes("음식점")) score += 6;
-  if (item.road_address_name) score += 3;
-  if (isSeoulSearch && address && !address.includes("서울")) score -= 50;
-  return score;
-}
-
-function keywordSearch(places, query) {
-  return new Promise((resolve) => {
-    places.keywordSearch(query, (data, status) => {
-      if (status === kakao.maps.services.Status.OK) {
-        resolve(data || []);
-      } else {
-        resolve([]);
-      }
-    }, { size: 10 });
-  });
-}
-
-function createMarker(group) {
-  const position = new kakao.maps.LatLng(group.lat, group.lng);
-  const marker = new kakao.maps.Marker({
-    map: state.map,
-    position,
-    title: group.place,
-  });
-
-  const details = group.rows.slice(0, 5).map((row) => `<li>${escapeHtml(row.date)} · ${formatWon(row.amount)}</li>`).join("");
-  const more = group.rows.length > 5 ? `<li>외 ${group.rows.length - 5}건</li>` : "";
-  const content = `<div class="info-window">
-    <button type="button" class="info-close" data-place-key="${escapeHtml(group.key)}" aria-label="정보창 닫기">×</button>
-    <strong>${escapeHtml(group.place)}</strong>
-    <div>${group.rows.length}건 · ${formatWon(group.amount)}</div>
-    <div>${escapeHtml(group.address)}</div>
-    <ul>${details}${more}</ul>
-  </div>`;
-  const infowindow = new kakao.maps.InfoWindow({ content });
-
-  kakao.maps.event.addListener(marker, "click", () => {
-    state.infowindows.forEach((item) => item.close());
-    infowindow.open(state.map, marker);
-  });
-
-  group.marker = marker;
-  group.infowindow = infowindow;
-  state.markers.push(marker);
-  state.infowindows.push(infowindow);
-  state.bounds.extend(position);
-}
-
-function clearMarkers() {
-  state.markers.forEach((marker) => marker.setMap(null));
-  state.infowindows.forEach((infowindow) => infowindow.close());
-  state.groupedPlaces.forEach((group) => {
-    group.marker = null;
-    group.infowindow = null;
-  });
-  state.markers = [];
-  state.infowindows = [];
-  state.bounds = null;
-}
-
-function fitMapToMarkers() {
-  if (!state.map || !state.markers.length || !state.bounds) return;
-  state.map.setBounds(state.bounds);
-}
+# 학교카드 사용지도
+
+서울특별시교육청 업무추진비 공개자료를 불러와  
+학교카드 사용처를 표와 지도에서 한눈에 확인할 수 있는 도구입니다.
+
+> 현재 버전은 **서울특별시교육청 공개자료 전용**입니다.  
+> 자동 불러오기는 서버 API가 필요하므로 **GitHub Pages 단독 배포가 아니라 Vercel 배포를 권장**합니다.
+
+---
+
+## 주요 기능
+
+- 서울특별시교육청 업무추진비 공개자료 자동 불러오기
+- 학교명과 기준월 입력으로 월별 업무추진비 내역 수집
+- 수집한 자료 자동 정제
+- 지도 표시 대상 / 지도 제외 / 위치 확인 필요 분류
+- 카카오맵 기반 사용처 지도 표시
+- 일반 사용자용 기본 지도 키 내장
+- 학교 주소 조회 기반 검색 지역 자동 보정
+- 같은 장소 여러 건 묶어서 표시
+- 마커 클릭 시 집행일자, 금액, 목적 확인
+- 수동 붙여넣기 방식 지원
+
+---
+
+## 배포 구조
+
+이 버전은 Vercel 배포에 맞춰 정리되어 있습니다.
+
+```text
+school-card-map/
+├─ api/
+│  ├─ sen_fetch.py       # Vercel 자동수집 API
+│  └─ school_info.py     # 학교 주소 조회 API
+├─ app.js                # 화면 동작
+├─ index.html            # 메인 화면
+├─ styles.css            # 스타일
+├─ server.py             # 로컬 실행용 서버
+├─ vercel.json           # Vercel rewrite 설정
+└─ README.md
+```
+
+프론트에서는 `/sen-fetch`로 업무추진비 자료를 요청하고, Vercel에서는 `vercel.json`이 이 요청을 `/api/sen_fetch`로 연결합니다. 학교 주소 확인은 `/api/school_info`에서 처리합니다.
+
+---
+
+## Vercel 배포 방법
+
+### 1. GitHub에 올리기
+
+```powershell
+git add .
+git commit -m "Deploy school card map to Vercel"
+git push
+```
+
+### 2. Vercel에서 프로젝트 만들기
+
+1. Vercel 접속
+2. GitHub 계정으로 로그인
+3. `Add New...` → `Project`
+4. `school-card-map` 저장소 선택
+5. Framework Preset은 `Other` 선택
+6. 별도 Build Command 없이 Deploy
+
+배포가 끝나면 아래 같은 주소가 생성됩니다.
+
+```text
+https://school-card-map.vercel.app
+```
+
+---
+
+---
+
+## 학교 지역 자동 확인
+
+v1.2.0부터는 학교명 글자만 보고 자치구를 추정하지 않습니다.
+예를 들어 `구암중`처럼 학교명에 `중`이 들어간다는 이유로 `중구`로 추정하는 방식은 제거했습니다.
+
+우선순위는 아래와 같습니다.
+
+```text
+1. 사용자가 지도 고급 설정에 직접 입력한 지역 보조어
+2. /api/school_info 학교 주소 조회 결과에서 추출한 서울특별시 ○○구
+3. 카카오 장소검색의 학교 위치 보조 확인
+4. 주소 확인 실패 시 서울특별시 넓은 검색
+```
+
+`/api/school_info`는 NEIS 학교기본정보를 우선 사용합니다. 배포 환경에서 더 안정적으로 쓰려면 Vercel 환경변수에 `NEIS_API_KEY`를 등록할 수 있습니다. 키가 없어도 가능한 범위에서 조회를 시도하고, 실패하면 프론트의 카카오 학교 위치 보조 확인으로 넘어갑니다.
+
+## 카카오 지도 키 설정
+
+이 버전은 일반 사용자가 바로 사용할 수 있도록 **카카오 JavaScript 키 기본값을 내장**했습니다.  
+사용자는 별도 키 입력 없이 `사용처 지도 만들기`를 누르면 됩니다.
+
+다만 배포 도메인은 카카오 개발자 콘솔의 **JavaScript SDK 도메인**에 등록되어 있어야 합니다. Vercel 주소를 추가하세요.
+
+```text
+https://school-card-map.vercel.app
+```
+
+GitHub Pages 주소도 함께 사용할 경우 아래 도메인도 추가할 수 있습니다.
+
+```text
+https://sen-vip.github.io
+```
+
+앱 화면의 `지도 고급 설정`은 포크/재배포 사용자 또는 테스트용입니다. 직접 JavaScript 키를 입력하면 기본 키 대신 사용자 키를 우선 사용하고, 입력값은 브라우저 localStorage에만 저장됩니다.
+
+> Admin 키나 REST API 키는 코드에 넣지 마세요.  
+> 이 앱에는 카카오 **JavaScript 키**만 사용합니다. JavaScript 키는 브라우저에 노출되는 키이므로 카카오 개발자 콘솔에서 도메인 제한을 걸어 사용하세요.
+
+---
+
+## 로컬 실행 방법
+
+Vercel 배포 전 로컬에서 테스트하려면 Python 서버를 실행합니다.
+
+```powershell
+python server.py
+```
+
+브라우저에서 아래 주소로 접속합니다.
+
+```text
+http://localhost:5500
+```
+
+로컬 서버는 `/sen-fetch` 요청을 직접 처리합니다.
+
+---
+
+## 사용 흐름
+
+1. 학교명과 기준월을 입력합니다.
+2. `사용처 지도 만들기`를 누릅니다.
+3. 앱이 학교 주소 확인 → 자치구 추출 → 서울교육청 자료 수집 → 지도 대상 정리 → 사용처 위치 검색을 순서대로 진행합니다.
+4. 표시 완료, 위치 확인 필요, 지도 제외 내역을 확인합니다.
+
+`지역 보조어`는 이전 학교에서 입력한 값이 다음 학교에 잘못 적용되지 않도록 기본 저장하지 않습니다. 학교명으로 먼저 추정하고, 필요하면 카카오 장소검색으로 학교 소재 자치구를 확인합니다. 예를 들어 `금천고`는 `서울특별시 금천구`, `대청중`은 `서울특별시 강남구` 기준으로 장소를 검색합니다. 필요할 때만 `지도 고급 설정`에서 직접 보정할 수 있습니다.
+
+---
+
+## 지도 제외 기준
+
+지도에는 실제 방문 장소로 보기 어려운 항목을 제외합니다.
+
+### 집행목적 기준 제외
+
+- 경조사비
+- 경조비
+- 부의금
+- 축의금
+- 조의금
+- 근조
+- 화환
+- 직책급업무추진비
+
+### 집행장소 기준 제외
+
+- 지마켓
+- G마켓
+- 11번가
+- 십일번가
+- 옥션
+- 쿠팡
+- 네이버쇼핑
+- 네이버페이
+- SSG
+- 에스에스지닷컴
+- 인터파크
+- 온라인몰
+- 인터넷쇼핑몰
+- 택배
+
+제외된 자료는 삭제하지 않고 `지도 제외` 탭에서 확인할 수 있습니다.
+
+---
+
+## GitHub Pages에서 안 되는 이유
+
+GitHub Pages는 정적 웹페이지 배포에는 적합하지만 `/sen-fetch` 같은 서버 API를 실행하지 못합니다.  
+따라서 이 앱은 GitHub Pages보다 **Vercel 배포**가 적합합니다.
+
+---
+
+## 라이선스
+
+MIT License
+
+### v1.2.1 줄임말 검색 보정
+
+학교명 줄임말 후보를 자동으로 확장합니다.
+
+- 무학여고 → 무학여자고등학교 / 무학여자고
+- ○○남고 → ○○남자고등학교 / ○○남자고
+- ○○여중 → ○○여자중학교 / ○○여자중
+- ○○남중 → ○○남자중학교 / ○○남자중
+
+서울교육청 공개자료 자동수집과 학교 주소 확인 API 모두 같은 후보 확장 규칙을 사용합니다.
+
+
+
+
+
+
+
+### v1.2.11 기준월 초기화 안정화
+
+- v1.2.10에서 기준월 기본값 처리 상수가 `init()` 이후에 선언되어 초기 실행이 멈추던 문제를 수정했습니다.
+- 학교명 입력/학교 주소 확인/사용처 지도 만들기 흐름이 다시 정상 실행되도록 안정화했습니다.
+- 기준월 기본값은 계속 `지난달`로 유지됩니다.
+
+### v1.2.10 기준월 기본값 개선
+
+- 기준월 기본값을 이번 달이 아니라 `지난달`로 변경했습니다.
+- 서울교육청 업무추진비 공개자료가 당월에는 아직 올라오지 않은 경우가 많아, 처음 접속 시 `현재월 - 1개월`이 자동 선택됩니다.
+- 이전 버전에서 이번 달 값이 자동 저장되어 있던 사용자는 v1.2.10 접속 시 한 번만 지난달로 보정됩니다.
+- 사용자가 기준월을 직접 바꾼 뒤에는 선택한 값을 그대로 유지합니다.
+
+### v1.2.9 모바일 최적화
+
+- 모바일에서 상단 입력 영역이 `학교명 → 기준월 → 사용처 지도 만들기` 순서로 자연스럽게 쌓이도록 조정했습니다.
+- 진행 단계는 세로로 길게 늘어나지 않도록 가로 스크롤형 단계 칩으로 바꿨습니다.
+- 요약 카드는 모바일에서 2열 카드형으로 압축해 스크롤 길이를 줄였습니다.
+- 모바일에서는 지도 영역을 사용처 목록보다 먼저 보여 주어 결과를 바로 확인할 수 있게 했습니다.
+- 결과 표는 작은 화면에서 가로 스크롤 표가 아니라 카드형 목록으로 바뀝니다.
+- 위치 수정 모달은 모바일에서 하단 시트 형태로 열려 후보 선택이 쉬워졌습니다.
+
+### v1.2.8 UI/UX 탭 구조 정리
+
+- 상단 입력 영역을 `학교명 + 기준월 + 사용처 지도 만들기` 한 줄 흐름으로 정리했습니다.
+- 검색 지역과 카카오 지도 설정 상태를 입력 영역 바로 아래에서 확인할 수 있게 했습니다.
+- 결과 탭을 `지도 표시 대상 / 지도 제외 / 전체`로 단순화했습니다.
+- `확인 필요`는 별도 탭이 아니라 지도 표시 대상 안의 상태 배지로 함께 보여줍니다.
+- 검색 실패 항목은 지도 표시 대상에서는 제외하고, 전체 탭에서 위치 수정으로 다시 검색할 수 있게 했습니다.
+- 위치 수정 모달의 영어 라벨을 사용자용 문구인 `위치 확인`으로 바꿨습니다.
+
+### v1.2.7 다지점 후보 정렬 개선
+
+- 카카오 검색 결과가 여러 지점으로 나올 때 첫 번째 후보만 바로 선택하지 않고 전체 후보를 비교합니다.
+- 검색어에 들어간 자치구와 후보 주소가 일치하면 가장 강하게 우선합니다.
+- 학교 주소에서 확인한 자치구와 후보 주소가 일치하면 다음 우선순위로 반영합니다.
+- 원문에 지점명이 있으면 지점명 일치를 계속 우선하며, 지점명이 없는 상호는 학교/검색어 자치구 후보를 더 위로 올립니다.
+- 예: “서울특별시 강남구 덮밥장사장”으로 검색하면 강남구 후보를 우선 선택합니다.
+
+### v1.2.6 실사용 우선 자동 표시 개선
+
+- 서울 안에서 상호명 또는 지점명이 맞으면 학교 자치구가 달라도 우선 표시 완료로 처리합니다.
+- `샌드홀릭`, `상무초밥(왕십리점)`, `파리바게뜨 신당점`처럼 결과가 명확한 항목은 확인 필요로 과하게 보내지 않도록 조정했습니다.
+- 프랜차이즈/흔한 상호도 검색 결과가 서울 안에 있고 상호가 맞으면 먼저 지도에 표시하고, 틀린 경우 사용자가 위치 수정으로 고칠 수 있게 했습니다.
+- `파리바게트/파리바게드/파리바게뜨` 표기 차이를 보정합니다.
+
+### v1.2.5 상호명 정제·지점명 유사판정 개선
+
+- 카드 승인내역의 법인명/운영사명을 제거해 실제 식당 상호를 우선 검색합니다.
+  - 예: `더이룸푸드(주)정담은보쌈` → `정담은보쌈`
+- `/`로 붙은 지역 힌트와 지점명을 분리해 검색합니다.
+  - 예: `오공김밥 봉천직영점/은천` → `오공김밥 봉천점`, `오공김밥 봉천`, 주소 힌트 `은천`
+- `직영점`, `지점`, `본점`, `점` 표현을 정규화해 같은 지점으로 판단합니다.
+- 상호명과 지점 핵심어가 맞는 서울 결과는 불필요하게 “확인 필요”로 보내지 않고 표시 완료로 처리합니다.
+
+### v1.2.4 상호+지점명 일치 자동 표시
+
+- 상호명과 지점명이 모두 일치하는 서울 지역 결과는 학교 자치구와 달라도 `표시 완료`로 처리합니다.
+- 예: `육도락 중앙대점`처럼 지점명이 명확히 맞는 경우, 사용자가 위치 수정에서 다시 고르지 않도록 자동 반영합니다.
+- 지점명만 같고 상호명이 다른 후보는 계속 `확인 필요`로 남겨 오탐을 줄입니다.
+
+### v1.2.3 지점명 우선 검색 개선
+
+- 사용처 위치 검색 순서를 `식당명+지점명` → `서울특별시+식당명+지점명` → `학교 자치구+식당명` 순으로 개선했습니다.
+- 학교 자치구는 필수 조건이 아니라 보조 힌트로 조정했습니다.
+- 지점명이 정확히 일치하면 다른 서울 자치구 결과도 표시 완료가 가능하도록 신뢰도 기준을 보정했습니다.
+- 본죽, 김밥천국, 스타벅스처럼 흔한 상호명은 지점명이나 지역 정보가 부족하면 확인 필요로 남기도록 했습니다.
+
+### v1.2.2 위치검색 신뢰도 및 위치 수정
+
+카카오 장소검색 결과를 무조건 표시 완료로 처리하지 않고, 학교 기준 지역과 장소명 유사도를 함께 보아 상태를 나눕니다.
+
+- 표시 완료: 학교 기준 자치구와 장소명이 비교적 잘 맞는 결과
+- 확인 필요: 결과는 있지만 자치구·지점명·장소명 유사도가 애매한 결과
+- 검색 실패: 사용할 수 있는 후보를 찾지 못한 결과
+- 수동 확인 완료: 사용자가 후보 목록에서 직접 선택한 결과
+
+확인 필요 또는 검색 실패 항목은 결과 표에서 `위치 수정`을 눌러 새 검색어로 다시 검색하고, 후보 목록에서 `이 위치 사용`을 선택해 지도와 표에 즉시 반영할 수 있습니다.
