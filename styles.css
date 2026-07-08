@@ -1763,3 +1763,8 @@ input:focus, textarea:focus {
   .place-map-info em { display: block; }
   .place-map-info span { margin-bottom: 3px; }
 }
+
+/* v1.3.2 month field alignment cleanup */
+.month-field input {
+  margin-bottom: 0;
+}

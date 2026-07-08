@@ -16,7 +16,7 @@ const SCHOOL_INFO_ENDPOINT = "/api/school_info";
 const DEFAULT_KAKAO_JS_KEY = "9a75b8f0e12044be3f4588a0f3c728b5";
 const DEFAULT_REGION_HINT = "서울특별시";
 const DEFAULT_MONTH_MODE_KEY = "schoolCardMapDefaultMonthMode";
-const DEFAULT_MONTH_MODE = "previous-month-v1.2.11";
+const DEFAULT_MONTH_MODE = "previous-month-v1.3.1";
 const DISPLAY_STATUSES = ["mapped", "manual", "needs_review"];
 // 학교명 글자만 보고 자치구를 추정하면 구암중→중구처럼 오판할 수 있습니다.
 // 지역은 학교 주소 조회 결과에서만 확정하고, 아래 값은 주소 조회 실패 시 예시 학교 보조용으로만 사용합니다.
@@ -121,6 +121,7 @@ function init() {
   localStorage.removeItem("schoolCardMapAreaHint");
   elements.areaHint.value = "";
   const savedBaseMonth = localStorage.getItem("schoolCardMapBaseMonth") || "";
+  setMonthInputLimits();
   elements.baseMonth.value = getInitialBaseMonth(savedBaseMonth);
   if (elements.senSourceUrl) elements.senSourceUrl.value = localStorage.getItem("schoolCardMapSenSourceUrl") || SEN_DEFAULT_URL;
   // v1.1.4: 이전 버전에서 저장된 /sen-proxy?url= 값이 자동 불러오기를 막지 않도록 강제로 /sen-fetch를 사용합니다.
@@ -164,6 +165,8 @@ function init() {
     }
   });
   elements.areaHint?.addEventListener("input", updateMapSettingStatus);
+  elements.baseMonth?.addEventListener("input", enforceBaseMonthLimit);
+  elements.baseMonth?.addEventListener("blur", enforceBaseMonthLimit);
 
   elements.resultTabs.addEventListener("click", (event) => {
     const button = event.target.closest(".tab");
@@ -183,22 +186,47 @@ function getInitialBaseMonth(savedValue) {
   const currentMonth = getCurrentMonth();
   const migrated = localStorage.getItem(DEFAULT_MONTH_MODE_KEY) === DEFAULT_MONTH_MODE;
 
-  // v1.2.11 안정화: init() 실행 전에 사용하는 상수를 먼저 선언하고,
-  // 예전 버전에서 자동 저장된 이번 달 값은 한 번만 지난달로 보정합니다.
+  // v1.3.1: 기본값은 지난달이며, 이번 달 이후는 선택/저장되지 않도록 보정합니다.
   if (!migrated) {
     localStorage.setItem(DEFAULT_MONTH_MODE_KEY, DEFAULT_MONTH_MODE);
-    if (!isMonthValue(saved) || saved === currentMonth) {
+    if (!isMonthValue(saved) || saved === currentMonth || isAfterMaxBaseMonth(saved)) {
       localStorage.setItem("schoolCardMapBaseMonth", defaultMonth);
       return defaultMonth;
     }
   }
 
-  if (!isMonthValue(saved)) {
+  if (!isMonthValue(saved) || isAfterMaxBaseMonth(saved)) {
     localStorage.setItem("schoolCardMapBaseMonth", defaultMonth);
     return defaultMonth;
   }
 
   return saved;
+}
+
+function setMonthInputLimits() {
+  if (!elements.baseMonth) return;
+  const maxMonth = getPreviousMonth();
+  elements.baseMonth.max = maxMonth;
+}
+
+function enforceBaseMonthLimit() {
+  if (!elements.baseMonth) return true;
+  setMonthInputLimits();
+  const value = elements.baseMonth.value.trim();
+  if (!value) return false;
+  if (isAfterMaxBaseMonth(value)) {
+    const maxMonth = getPreviousMonth();
+    elements.baseMonth.value = maxMonth;
+    localStorage.setItem("schoolCardMapBaseMonth", maxMonth);
+    setAutoStatus(`기준월을 ${formatDisplayMonth(maxMonth)}로 조정했습니다.`, true);
+    return false;
+  }
+  return true;
+}
+
+function isAfterMaxBaseMonth(value) {
+  if (!isMonthValue(value)) return false;
+  return value > getPreviousMonth();
 }
 
 function isMonthValue(value) {
@@ -226,6 +254,7 @@ function saveSettings() {
   else localStorage.removeItem("schoolCardMapKakaoKey");
   localStorage.setItem("schoolCardMapSchoolName", elements.schoolName.value.trim());
   // 지역 보조어는 학교 변경 시 오염을 막기 위해 저장하지 않습니다.
+  enforceBaseMonthLimit();
   localStorage.setItem("schoolCardMapBaseMonth", elements.baseMonth.value.trim());
   if (elements.senSourceUrl) localStorage.setItem("schoolCardMapSenSourceUrl", elements.senSourceUrl.value.trim());
   // 자동수집 API는 /sen-fetch로 고정합니다. 사용자가 수정하거나 이전 값이 저장되지 않게 합니다.
@@ -520,6 +549,9 @@ async function runFullWorkflow() {
     setAutoStatus("기준월을 선택해 주세요.", true);
     return;
   }
+  if (!enforceBaseMonthLimit()) {
+    return;
+  }
 
   try {
     setMainButtonLoading(true);
@@ -625,10 +657,14 @@ async function fetchSenBudgetData() {
     setAutoStatus("기준월을 선택해 주세요.", true);
     return;
   }
+  if (!enforceBaseMonthLimit()) {
+    return;
+  }
 
   try {
-    setAutoStatus(`${schoolName} / ${baseMonth} 기준으로 서울교육청 공개자료를 가져오는 중입니다...`);
-    const rows = await collectSenRows({ schoolName, baseMonth });
+    const safeBaseMonth = elements.baseMonth.value.trim();
+    setAutoStatus(`${schoolName} / ${safeBaseMonth} 기준으로 서울교육청 공개자료를 가져오는 중입니다...`);
+    const rows = await collectSenRows({ schoolName, baseMonth: safeBaseMonth });
     if (!rows.length) {
       setAutoStatus("해당 학교명과 기준월의 업무추진비 공개자료를 찾지 못했습니다. 학교명 또는 기준월을 확인해 주세요. 자동 불러오기가 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.", true);
       return;
