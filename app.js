@@ -999,6 +999,11 @@ function renderSummary() {
   const mappedAmountOnly = mappedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const excludedAmount = state.excludedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const hasSearchedMap = state.mode === "mapped";
+  const summaryGrid = document.querySelector(".summary-grid");
+  if (summaryGrid) {
+    summaryGrid.classList.toggle("has-data", Boolean(state.rawRows.length));
+    summaryGrid.classList.toggle("is-mapped", hasSearchedMap);
+  }
 
   $("#totalCount").textContent = `${state.rawRows.length}`;
   $("#totalAmount").textContent = formatWon(totalAmount);
@@ -1675,7 +1680,7 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
   state.schoolRegionSource = "default";
   state.schoolRegionSchool = schoolName;
   updateMapSettingStatus();
-  updateSchoolStatus(`학교 주소를 확인하지 못했습니다. ${DEFAULT_REGION_HINT} 기준으로 넓게 검색합니다. 필요하면 지도 고급 설정에서 지역 보조어를 입력하세요.`, "neutral");
+  updateSchoolStatus(`학교 주소를 확인하지 못했습니다. ${DEFAULT_REGION_HINT} 기준으로 넓게 검색합니다. 필요하면 설정에서 지역 보조어를 입력하세요.`, "neutral");
   return DEFAULT_REGION_HINT;
 }
 

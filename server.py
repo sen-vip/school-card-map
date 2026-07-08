@@ -427,7 +427,7 @@ class CardMapHandler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     os.chdir(BASE_DIR)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), CardMapHandler)
-    print(f"학교카드 사용지도 v1.2.0 서울교육청 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
+    print(f"학교카드 사용처 지도 v1.2.0 서울교육청 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
     print("종료하려면 Ctrl+C")
     try:
         server.serve_forever()

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>학교카드 사용지도</title>
+  <title>학교카드 사용처 지도</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -11,13 +11,13 @@
   <header class="app-header">
     <div class="header-inner">
       <div>
-        <p class="eyebrow">카드지도 v1.2.13</p>
-        <h1>학교카드 사용지도</h1>
-        <p class="lead">서울특별시교육청 업무추진비 공개자료를 불러와 학교카드 사용처를 지도와 표로 정리합니다.</p>
+        <p class="eyebrow">카드지도 v1.3.0</p>
+        <h1>학교카드 사용처 지도</h1>
+        <p class="lead">학교명과 기준월만 입력하면 학교카드 사용처를 한 번에 지도에 표시합니다.</p>
       </div>
       <div class="header-card">
-        <strong>서울교육청 전용</strong>
-        <span>Vercel 배포에서 자동수집 API까지 함께 동작합니다.</span>
+        <strong>버튼 하나로 지도 생성</strong>
+        <span>자료 수집·위치 검색·지도 표시를 한 번에 진행합니다.</span>
       </div>
     </div>
   </header>
@@ -27,8 +27,8 @@
       <div class="section-title-row launch-title-row">
         <div>
           <p class="eyebrow">학교카드 사용처 지도</p>
-          <h2 id="setup-title">학교카드 사용처 지도</h2>
-          <p class="help-text">학교명과 기준월만 입력하면 자료 수집부터 지도 표시까지 한 번에 진행합니다. 기준월은 공개자료가 올라온 지난달로 기본 설정됩니다.</p>
+          <h2 id="setup-title">학교명과 기준월만 확인하세요</h2>
+          <p class="help-text">공개자료가 올라온 지난달을 기본으로 잡고, 검색 지역은 학교 주소에서 자동 확인합니다.</p>
         </div>
         <button type="button" class="ghost-button" id="sampleBtn">예시 넣기</button>
       </div>
@@ -72,7 +72,7 @@
       </ol>
 
       <details class="notice settings-details">
-        <summary>지도 고급 설정</summary>
+        <summary>설정</summary>
         <div class="settings-grid">
           <label>
             <span>카카오 JavaScript 키 <em>선택</em></span>
@@ -87,14 +87,14 @@
       </details>
 
       <details class="notice auto-debug" id="autoDebugBox">
-        <summary>자동수집 상세 정보</summary>
+        <summary>자료 가져오기 상세</summary>
         <div class="debug-meta">
           <button type="button" class="ghost-button small-inline-button" id="openSenBtn">원문 공개페이지 보기</button>
           <p><b>요청 방식</b> POST · <b>자동수집 API</b> /sen-fetch → /api/sen_fetch</p>
           <p><b>목록 URL</b> https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do</p>
           <p><b>상세 URL</b> https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010d.do</p>
         </div>
-        <pre id="autoDebugText">아직 자동수집 상세 정보가 없습니다.</pre>
+        <pre id="autoDebugText">아직 자료 가져오기 상세가 없습니다.</pre>
       </details>
     </section>
 
@@ -191,14 +191,14 @@
     <details class="panel paste-panel manual-panel" aria-labelledby="paste-title">
       <summary class="manual-summary">
         <span>
-          <span class="eyebrow">수동 입력</span>
+          <span class="eyebrow">보조 기능</span>
           <strong id="paste-title">수동으로 붙여넣기</strong>
         </span>
-        <em>자동 불러오기가 어렵거나 테스트 자료를 사용할 때 사용</em>
+        <em>자동으로 가져오기가 어려울 때만 사용</em>
       </summary>
       <div class="manual-content">
         <div class="section-title-row">
-          <p class="help-text">서울교육청 상세화면의 표를 복사해 붙여넣으면 자동 불러오기와 동일한 방식으로 정제됩니다.</p>
+          <p class="help-text">서울교육청 상세화면의 표를 복사해 붙여넣으면 같은 방식으로 정리합니다.</p>
           <button type="button" class="ghost-button danger" id="clearBtn">초기화</button>
         </div>
         <div class="flow-guide" aria-label="사용 흐름">
@@ -209,30 +209,33 @@
         <div class="action-row">
           <button type="button" class="secondary-button step-button" id="parseOnlyBtn"><small>1단계</small> 자료 확인하기</button>
           <button type="button" class="primary-button step-button" id="makeMapBtn"><small>2단계</small> 지도 만들기</button>
-          <span id="statusText" class="status-text" role="status">수동 입력은 보조 기능입니다. 일반 사용자는 위의 [사용처 지도 만들기] 버튼을 이용하세요.</span>
+          <span id="statusText" class="status-text" role="status">보조 기능입니다. 일반 사용자는 위의 [사용처 지도 만들기]만 누르면 됩니다.</span>
         </div>
       </div>
     </details>
 
 
-    <section class="panel rules-panel" aria-labelledby="rules-title">
-      <div class="section-title-row">
-        <div>
-          <p class="eyebrow">RULES</p>
-          <h2 id="rules-title">지도 제외 규칙</h2>
+    <details class="panel rules-panel support-details" aria-labelledby="rules-title">
+      <summary class="manual-summary support-summary">
+        <span>
+          <span class="eyebrow">보조 정보</span>
+          <strong id="rules-title">지도에 표시하지 않는 항목</strong>
+        </span>
+        <em>온라인몰·공과금처럼 위치 표시가 어울리지 않는 항목</em>
+      </summary>
+      <div class="manual-content support-content">
+        <div class="rule-grid">
+          <div>
+            <h3>집행목적 제외</h3>
+            <p id="purposeRules"></p>
+          </div>
+          <div>
+            <h3>집행장소 제외</h3>
+            <p id="placeRules"></p>
+          </div>
         </div>
       </div>
-      <div class="rule-grid">
-        <div>
-          <h3>집행목적 제외</h3>
-          <p id="purposeRules"></p>
-        </div>
-        <div>
-          <h3>집행장소 제외</h3>
-          <p id="placeRules"></p>
-        </div>
-      </div>
-    </section>
+    </details>
   </main>
 
   <div class="location-modal hidden" id="locationModal" role="dialog" aria-modal="true" aria-labelledby="locationModalTitle">
@@ -256,7 +259,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용지도 · 카드지도 v1.2.13 · 학돌랩</p>
+    <p>학교카드 사용처 지도 · 카드지도 v1.3.0 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>

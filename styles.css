@@ -1503,3 +1503,263 @@ tr.row-muted:hover { background: #f8fafc; }
     justify-content: center;
   }
 }
+
+
+/* v1.3.0 design polish: simpler first screen, calmer colors, map-first results */
+:root {
+  --bg: #f4f7fb;
+  --panel: #ffffff;
+  --ink: #172033;
+  --muted: #66748a;
+  --line: #e3eaf3;
+  --navy: #183b63;
+  --navy-2: #285a8f;
+  --slate: #6b778c;
+  --green: #138267;
+  --amber: #b76b12;
+  --red: #be4b2d;
+  --shadow: 0 18px 48px rgba(24, 49, 83, 0.08);
+  --radius: 22px;
+}
+
+body {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(50, 115, 171, .12), transparent 30%),
+    linear-gradient(180deg, #f7fbff 0%, var(--bg) 44%, #eef3f8 100%);
+}
+
+.app-header {
+  background: linear-gradient(135deg, #102b4a 0%, #173b63 58%, #2d6f91 100%);
+  padding: 34px 24px 60px;
+}
+
+.header-inner { align-items: center; }
+.app-header h1 { font-size: clamp(30px, 4.3vw, 48px); }
+.lead { max-width: 720px; line-height: 1.55; }
+.header-card {
+  min-width: 230px;
+  background: rgba(255,255,255,.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
+}
+
+.shell { margin-top: -34px; }
+.panel { border-color: rgba(210, 221, 235, .9); }
+
+.launch-panel {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(24, 59, 99, .12);
+  background: linear-gradient(180deg, #ffffff 0%, #f9fcff 100%);
+  box-shadow: 0 22px 58px rgba(24, 49, 83, 0.11);
+}
+.launch-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, #183b63, #3f8cae, #6fd0b7);
+}
+.launch-title-row .eyebrow { color: #3f678c; }
+.launch-title-row h2 { font-size: 24px; }
+.launch-title-row .help-text { max-width: 780px; }
+
+#sampleBtn {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #f5f8fc;
+  color: #526172;
+}
+
+.launch-form-grid {
+  padding: 16px;
+  border: 1px solid #e6eef7;
+  border-radius: 18px;
+  background: #f8fbff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+}
+label span { color: #304158; }
+input, textarea { background: #fff; border-color: #dce6f1; }
+input:focus, textarea:focus {
+  border-color: #2d6f91;
+  box-shadow: 0 0 0 4px rgba(45, 111, 145, 0.13);
+}
+
+.main-cta-button {
+  background: linear-gradient(135deg, #183b63 0%, #285a8f 100%);
+  min-width: 220px;
+  box-shadow: 0 14px 30px rgba(24, 59, 99, .22);
+}
+.main-cta-button:hover { filter: brightness(1.04); }
+
+.launch-status-row {
+  padding: 0 2px;
+}
+.setting-pill {
+  border-color: #dbe5ef;
+  background: #fff;
+  color: #42536a;
+}
+.setting-pill.ready {
+  background: #ecfdf5;
+  border-color: #c7f2de;
+  color: #0f766e;
+}
+.setting-pill.seoul-only {
+  background: #eef6ff;
+  border-color: #d5e7fb;
+  color: #183b63;
+}
+
+.workflow-status-row {
+  background: #f3f8fd;
+  border-color: #dce9f5;
+  color: #485a70;
+}
+.workflow-steps li {
+  background: #ffffff;
+  border-color: #e1eaf3;
+}
+.workflow-steps li.active {
+  background: #edf7ff;
+  border-color: #bfdaf3;
+}
+.workflow-steps li.done {
+  background: #edfdf7;
+  border-color: #c9f2e2;
+}
+
+/* Show summary only after data exists, so the first screen stays simple */
+.summary-grid:not(.has-data) { display: none; }
+.summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.summary-card {
+  border-radius: 18px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 10px 28px rgba(24, 49, 83, 0.05);
+}
+.summary-card strong { font-size: 22px; }
+
+.workspace {
+  grid-template-columns: minmax(360px, .88fr) minmax(460px, 1.12fr);
+}
+.table-panel, .map-panel { min-height: 560px; }
+.map-panel {
+  position: sticky;
+  top: 18px;
+  border-color: rgba(24, 59, 99, .12);
+}
+#map { height: 520px; }
+.map-legend {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.tabs { background: #eef3f8; }
+.tab { color: #5b6b7f; }
+.tab.active { color: #183b63; }
+.table-hint { color: #738096; }
+
+.place-list-wrap {
+  background: #f5f8fc;
+  border-color: #e2eaf3;
+}
+.place-card {
+  border-color: #e2eaf3;
+  border-radius: 18px;
+  box-shadow: 0 8px 20px rgba(24, 49, 83, 0.045);
+}
+.place-card.map-card:hover {
+  border-color: rgba(45, 111, 145, 0.35);
+  box-shadow: 0 12px 26px rgba(24, 59, 99, 0.09);
+}
+.place-card.card-review {
+  background: #fffaf3;
+  border-color: #f8d6a7;
+}
+.place-card.card-failed {
+  background: #fff8f5;
+  border-color: #f3c7b5;
+}
+.place-card.card-manual {
+  background: #f4fffb;
+  border-color: #bfead9;
+}
+.place-title { font-size: 15.5px; }
+.place-amount { color: #163b63; }
+.place-map-info {
+  padding-top: 2px;
+}
+.badge {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #eaf2fb;
+  color: #183b63;
+}
+.badge.warn { background: #fff4df; color: #a86106; }
+.badge.manual { background: #e9fbf4; color: #0f766e; }
+.badge.danger { background: #fff0e9; color: #b34722; }
+.badge.gray { background: #eef2f6; color: #66748a; }
+
+.mini-action {
+  background: #f6f9fc;
+  border-color: #dbe6f1;
+  color: #43546b;
+}
+.place-card-actions .mini-action.strong {
+  background: #183b63;
+  color: #fff;
+}
+.place-card-actions .mini-action.warn-action {
+  background: #fff3df;
+  color: #a86106;
+  border-color: #f6cc91;
+}
+
+/* Make secondary/technical blocks feel like optional support, not the main task */
+.settings-details,
+.auto-debug,
+.manual-panel,
+.rules-panel {
+  box-shadow: none;
+  border-color: #e5ecf4;
+  background: rgba(255,255,255,.78);
+}
+.settings-details summary,
+.auto-debug summary,
+.manual-summary {
+  color: #41526a;
+}
+.auto-debug pre { background: #fbfdff; }
+.manual-summary strong { font-size: 18px; }
+.manual-summary::after { background: #eef3f8; color: #526172; }
+.support-details { padding: 0; overflow: hidden; }
+.support-content { border-top: 1px solid var(--line); }
+.rule-grid div { background: #fbfdff; }
+
+.footer { color: #7b8798; }
+
+@media (max-width: 920px) {
+  .app-header { padding: 28px 16px 52px; }
+  .header-card { display: none; }
+  .launch-form-grid { padding: 12px; }
+  .summary-grid.has-data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workspace { display: flex; flex-direction: column; }
+  .map-panel { position: static; order: -1; }
+  #map { height: min(58vh, 420px); min-height: 320px; }
+}
+
+@media (max-width: 720px) {
+  .launch-title-row h2 { font-size: 21px; }
+  .workflow-status-row { padding: 10px 12px; }
+  .summary-grid.has-data { gap: 9px; }
+  .place-card { border-radius: 16px; }
+  .place-title { font-size: 15px; }
+  .place-map-info { display: block; }
+  .place-map-info span,
+  .place-map-info strong,
+  .place-map-info em { display: block; }
+  .place-map-info span { margin-bottom: 3px; }
+}

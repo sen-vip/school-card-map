@@ -445,7 +445,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         self._write_json(200, {
             "ok": True,
-            "message": "학교카드 사용지도 자동수집 API입니다. POST로 schoolName, baseMonth를 보내주세요."
+            "message": "학교카드 사용처 지도 자동수집 API입니다. POST로 schoolName, baseMonth를 보내주세요."
         })
 
     def do_POST(self) -> None:
