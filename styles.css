@@ -1768,3 +1768,27 @@ input:focus, textarea:focus {
 .month-field input {
   margin-bottom: 0;
 }
+
+
+/* v1.3.3 footer creator link */
+.footer p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.footer strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+.footer a {
+  color: var(--navy);
+  font-weight: 800;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(32, 74, 122, 0.24);
+}
+.footer a:hover {
+  border-bottom-color: var(--navy);
+}
