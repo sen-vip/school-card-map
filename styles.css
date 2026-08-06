@@ -2597,3 +2597,110 @@ body {
     min-height: 56px;
   }
 }
+
+/* v1.4.5 restore the original result-card proportions after the map/list swap */
+.workspace {
+  /* Keep the old, well-balanced widths and only reverse their order. */
+  grid-template-columns: minmax(460px, 1.12fr) minmax(360px, 0.88fr);
+}
+
+/* Align the bottoms of the map and result cards. */
+#map {
+  height: 610px;
+  min-height: 520px;
+}
+
+.place-list-wrap {
+  max-height: 610px;
+}
+
+.table-panel .section-title-row.sticky-title {
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.table-panel .section-title-row.sticky-title > div:first-child {
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+.table-panel #list-title {
+  white-space: nowrap;
+}
+
+.table-panel .tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.table-panel .tab {
+  padding: 8px 9px;
+  font-size: 13px;
+}
+
+.place-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.place-title-wrap {
+  flex-wrap: nowrap;
+}
+
+.place-title-wrap .badge {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.place-card-actions {
+  align-self: center;
+}
+
+/* Do not keep a squeezed two-column result layout on tablets. */
+@media (max-width: 1040px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-panel {
+    position: static;
+    order: 0;
+    width: 100%;
+  }
+
+  .table-panel {
+    order: 1;
+    width: 100%;
+  }
+
+  #map {
+    height: min(58vh, 430px);
+    min-height: 330px;
+  }
+
+  .place-list-wrap {
+    max-height: 640px;
+  }
+}
+
+@media (max-width: 640px) {
+  .table-panel .section-title-row.sticky-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .table-panel .tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .table-panel .tab {
+    width: 100%;
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+}
