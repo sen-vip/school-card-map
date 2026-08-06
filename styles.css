@@ -2210,3 +2210,101 @@ input[type="month"] {
     min-height: 0;
   }
 }
+
+
+/* v1.4.1 clearer surface contrast + calmer blue-gray background */
+:root {
+  --bg: #edf2f7;
+  --panel: #ffffff;
+  --ink: #182536;
+  --muted: #59677a;
+  --line: #d4deea;
+  --shadow: 0 14px 36px rgba(31, 58, 95, 0.105);
+}
+
+body {
+  background: linear-gradient(180deg, #f2f5f9 0%, #edf2f7 44%, #e8eef5 100%);
+}
+
+.app-header {
+  background: linear-gradient(135deg, #24486f 0%, #32618e 56%, #457aa8 100%);
+}
+
+.panel {
+  border-color: #d5dfe9;
+  box-shadow: var(--shadow);
+}
+
+.launch-panel {
+  border-color: #c9d8e7;
+  box-shadow: 0 18px 44px rgba(31, 58, 95, 0.135);
+}
+
+.launch-form-grid {
+  border-color: #d3deea;
+  background: #f1f5fa;
+}
+
+.help-text,
+.status-text,
+.table-hint,
+.map-legend,
+.manual-summary em {
+  color: var(--muted);
+}
+
+.workflow-status-row {
+  border-color: #d2ddea;
+  background: #edf2f7;
+}
+
+.workflow-steps li {
+  background: #cfd9e5;
+}
+
+.settings-details,
+.auto-debug {
+  border-color: #d7e1eb;
+  background: #f3f6fa;
+}
+
+.setting-pill {
+  border-color: #d5dfeb;
+  background: #ffffff;
+}
+
+.summary-card {
+  border-color: #d5dfe9;
+  box-shadow: 0 8px 22px rgba(31, 58, 95, 0.075);
+}
+
+.cta-panel {
+  border-color: #cad7e5;
+  background: linear-gradient(135deg, #f3f7fb 0%, #edf3f8 100%);
+}
+
+.cta-panel.complete {
+  border-color: #b9ddcf;
+  background: linear-gradient(135deg, #eaf7f2 0%, #f1f9f6 100%);
+}
+
+.cta-panel.complete .cta-badge {
+  border-color: #add8c8;
+  background: #daf1e8;
+}
+
+.cta-panel.complete .cta-map-button {
+  border: 1px solid #d2ddea;
+  background: #e8eef6;
+}
+
+#map,
+.table-wrap {
+  border-color: #d3dde8;
+}
+
+@media (max-width: 920px) {
+  body {
+    background: #edf2f7;
+  }
+}

@@ -58,6 +58,7 @@ const state = {
   schoolRegionHint: "",
   schoolRegionSource: "default",
   schoolRegionSchool: "",
+  resolvedSchoolName: "",
   workflowRunning: false,
   schoolCheckTimer: null,
   manualEditPlaceKey: "",
@@ -331,6 +332,7 @@ function handleSchoolNameInput() {
   state.schoolRegionHint = "";
   state.schoolRegionSource = "default";
   state.schoolRegionSchool = "";
+  state.resolvedSchoolName = "";
   if (elements.areaHint && !document.querySelector(".settings-details")?.open) {
     elements.areaHint.value = "";
   }
@@ -349,7 +351,7 @@ function updateNextAction(mode = state.mode) {
   elements.nextActionPanel.classList.toggle("hidden", !hasRows);
   if (!hasRows) return;
 
-  const schoolName = elements.schoolName.value.trim() || "선택한 학교";
+  const schoolName = getDisplaySchoolName() || "선택한 학교";
   const baseMonth = formatDisplayMonth(elements.baseMonth.value.trim());
   const targetAmount = state.visibleRows.reduce((sum, row) => sum + (row.amount || 0), 0);
   const excludedAmount = state.excludedRows.reduce((sum, row) => sum + (row.amount || 0), 0);
@@ -360,6 +362,7 @@ function updateNextAction(mode = state.mode) {
   if (mode === "mapped") {
     elements.nextActionBadge.textContent = "지도 생성 완료";
     elements.nextActionTitle.textContent = `${schoolName} ${baseMonth} 사용처 지도를 만들었습니다.`;
+    document.title = `${schoolName} ${baseMonth} 사용처 지도 | 학교카드 사용지도`;
     const reviewCount = getReviewRows().length;
     const failedCount = getFailedRows().length;
     const manualCount = getManualRows().length;
@@ -387,6 +390,32 @@ function formatDisplayMonth(value) {
     return `${year}년 ${Number(month)}월`;
   }
   return value || "선택월";
+}
+
+function getOfficialSchoolName() {
+  return String(
+    state.resolvedSchoolName ||
+    state.schoolRegionSchool ||
+    elements.schoolName?.value ||
+    ""
+  ).trim();
+}
+
+function formatSchoolDisplayName(value) {
+  const name = String(value || "").replace(/\s+/g, "").trim();
+  if (!name) return "";
+  return name
+    .replace(/여자고등학교$/, "여고")
+    .replace(/남자고등학교$/, "남고")
+    .replace(/여자중학교$/, "여중")
+    .replace(/남자중학교$/, "남중")
+    .replace(/초등학교$/, "초")
+    .replace(/중학교$/, "중")
+    .replace(/고등학교$/, "고");
+}
+
+function getDisplaySchoolName() {
+  return formatSchoolDisplayName(getOfficialSchoolName());
 }
 
 function insertSample() {
@@ -575,7 +604,7 @@ async function runFullWorkflow() {
     setWorkflowStep("map");
     await run({ withMap: true, skipResolveRegion: true });
     setWorkflowStep("done", "done");
-    setAutoStatus(`${schoolName} ${formatDisplayMonth(baseMonth)} 사용처 지도를 만들었습니다.`);
+    setAutoStatus(`${getDisplaySchoolName() || schoolName} ${formatDisplayMonth(baseMonth)} 사용처 지도를 만들었습니다.`);
   } catch (error) {
     console.error(error);
     setWorkflowStep("map", "error");
@@ -590,7 +619,7 @@ function setAutoStatus(message, isError = false) {
   if (!elements.autoStatusText) return;
   const isBusy = isBusyStatusMessage(message, isError);
   elements.autoStatusText.textContent = stripStaticDots(message);
-  elements.autoStatusText.style.color = isError ? "#c95645" : "#667085";
+  elements.autoStatusText.style.color = isError ? "#c95645" : "#59677a";
   setLoadingDots(elements.autoStatusText, isBusy);
 }
 
@@ -702,6 +731,8 @@ async function collectSenRows({ schoolName, baseMonth }) {
     throw error;
   }
   const rows = Array.isArray(data.rows) ? data.rows : [];
+  const resolvedSchoolName = String(data.schoolName || "").trim();
+  if (resolvedSchoolName) state.resolvedSchoolName = resolvedSchoolName;
   const debug = data.debug || {};
   const detail = data.detail || {};
   renderAutoDebug({ schoolName: data.schoolName || schoolName, baseMonth: data.baseMonth || baseMonth, debug, detail, rowCount: rows.length });
@@ -1672,6 +1703,7 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
       state.schoolRegionHint = schoolInfo.regionHint;
       state.schoolRegionSource = "neis";
       state.schoolRegionSchool = schoolInfo.schoolName || schoolName;
+      state.resolvedSchoolName = schoolInfo.schoolName || schoolName;
       updateMapSettingStatus();
       const addressText = schoolInfo.address ? ` · ${schoolInfo.address}` : "";
       updateSchoolStatus(`${schoolInfo.schoolName || schoolName} · ${schoolInfo.regionHint} 주소 확인 완료${addressText}`, "ready");
