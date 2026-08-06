@@ -3,8 +3,9 @@ const PURPOSE_EXCLUDE_KEYWORDS = [
 ];
 
 const PLACE_EXCLUDE_KEYWORDS = [
-  "지마켓", "G마켓", "g마켓", "주식회사 지마켓", "11번가", "십일번가", "옥션", "쿠팡",
-  "네이버쇼핑", "네이버페이", "SSG", "ssg", "에스에스지", "에스에스지닷컴", "쓱", "인터파크", "온라인", "인터넷", "택배"
+  "지마켓", "G마켓", "g마켓", "주식회사 지마켓", "이베이코리아", "eBay Korea", "EBAY KOREA",
+  "11번가", "십일번가", "옥션", "쿠팡", "네이버쇼핑", "네이버페이", "SSG", "ssg",
+  "에스에스지", "에스에스지닷컴", "쓱", "인터파크", "온라인", "인터넷", "택배"
 ];
 
 const SEN_DEFAULT_URL = "https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do";
@@ -587,7 +588,7 @@ async function runFullWorkflow() {
     setWorkflowStep("school");
     setAutoStatus("학교 지역을 확인하는 중입니다...");
     const region = await resolveSchoolRegionHint({ force: true });
-    setAutoStatus(`검색 지역을 ${region} 기준으로 설정했습니다. 서울교육청 자료를 가져오는 중입니다...`);
+    setAutoStatus(`검색 지역을 ${region} 기준으로 설정했습니다. 열린서울교육 자료를 가져오는 중입니다...`);
 
     setWorkflowStep("fetch");
     const rows = await collectSenRows({ schoolName, baseMonth });
@@ -692,7 +693,7 @@ async function fetchSenBudgetData() {
 
   try {
     const safeBaseMonth = elements.baseMonth.value.trim();
-    setAutoStatus(`${schoolName} / ${safeBaseMonth} 기준으로 서울교육청 공개자료를 가져오는 중입니다...`);
+    setAutoStatus(`${schoolName} / ${safeBaseMonth} 기준으로 열린서울교육 공개자료를 가져오는 중입니다...`);
     const rows = await collectSenRows({ schoolName, baseMonth: safeBaseMonth });
     if (!rows.length) {
       setAutoStatus("해당 학교명과 기준월의 업무추진비 공개자료를 찾지 못했습니다. 학교명 또는 기준월을 확인해 주세요. 자동 불러오기가 실패해도 아래 수동 붙여넣기로 계속 사용할 수 있습니다.", true);

@@ -2308,3 +2308,40 @@ body {
     background: #edf2f7;
   }
 }
+
+
+/* v1.4.2 visible Seoul-only source notice */
+.scope-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid #cbddec;
+  border-radius: 13px;
+  background: #eef6fc;
+  color: #40566d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.scope-notice strong {
+  flex: 0 0 auto;
+  color: #245b8e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scope-notice span {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .scope-notice {
+    width: 100%;
+    align-items: flex-start;
+  }
+}

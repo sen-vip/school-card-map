@@ -12,9 +12,9 @@
   <header class="app-header">
     <div class="header-inner">
       <div>
-        <p class="eyebrow">학돌랩 · 카드지도 v1.4.1</p>
+        <p class="eyebrow">학돌랩 · 카드지도 v1.4.2</p>
         <h1>학교카드 사용지도</h1>
-        <p class="lead">학교명과 기준월을 선택하면 학교카드 사용처를 지도와 목록으로 정리합니다.</p>
+        <p class="lead">서울특별시교육청 소속 학교의 업무추진비 사용처를 지도와 목록으로 정리합니다.</p>
       </div>
     </div>
   </header>
@@ -26,6 +26,10 @@
           <p class="eyebrow">지도 만들기</p>
           <h2 id="setup-title">학교카드 사용처를 찾아볼까요?</h2>
           <p class="help-text">학교명과 기준월을 선택하면 자료 수집부터 위치 검색까지 한 번에 진행합니다.</p>
+          <div class="scope-notice" role="note" aria-label="서비스 이용 범위 안내">
+            <strong>서울 학교만 지원</strong>
+            <span>열린서울교육 업무추진비 공개자료를 사용하므로 다른 시·도 학교는 조회할 수 없습니다.</span>
+          </div>
         </div>
         <button type="button" class="ghost-button" id="sampleBtn">대청중 예시</button>
       </div>
@@ -57,7 +61,7 @@
 
       <ol class="workflow-steps" id="workflowSteps" aria-label="진행 상태">
         <li data-step="school">학교 지역 확인</li>
-        <li data-step="fetch">서울교육청 자료 수집</li>
+        <li data-step="fetch">열린서울교육 자료 수집</li>
         <li data-step="parse">지도 대상 정리</li>
         <li data-step="map">사용처 위치 검색</li>
         <li data-step="done">지도 표시 완료</li>
@@ -256,7 +260,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용처 지도 · 카드지도 v1.4.1 · 학돌랩</p>
+    <p>학교카드 사용처 지도 · 카드지도 v1.4.2 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>
