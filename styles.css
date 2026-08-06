@@ -2345,3 +2345,255 @@ body {
     align-items: flex-start;
   }
 }
+
+/* v1.4.4 map-first results + clear lookup states + aligned launcher */
+.school-field {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.school-field > label {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.lookup-state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-color: #cbd8e5;
+  background: linear-gradient(135deg, #f5f8fb 0%, #eef3f8 100%);
+}
+
+.lookup-state-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.lookup-state-copy h2 {
+  margin: 0 0 7px;
+  color: var(--ink);
+  font-size: 22px;
+  letter-spacing: -0.035em;
+  word-break: keep-all;
+}
+
+.lookup-state-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.lookup-state-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 29px;
+  padding: 6px 10px;
+  border: 1px solid #cbd8e5;
+  border-radius: 999px;
+  background: #e6edf4;
+  color: #40566d;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.lookup-state-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.lookup-state-actions button {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.lookup-state-panel.no-data {
+  border-color: #c8d8e8;
+  background: linear-gradient(135deg, #f3f7fb 0%, #eaf1f7 100%);
+}
+
+.lookup-state-panel.no-data .lookup-state-badge {
+  border-color: #bfd2e4;
+  background: #e1edf7;
+  color: #2f5f89;
+}
+
+.lookup-state-panel.school-warning {
+  border-color: #ecd3a9;
+  background: linear-gradient(135deg, #fffaf2 0%, #fbf3e5 100%);
+}
+
+.lookup-state-panel.school-warning .lookup-state-badge {
+  border-color: #e8ca96;
+  background: #f9e9ca;
+  color: #9a5b09;
+}
+
+.lookup-state-panel.connection-error {
+  border-color: #ebc5bc;
+  background: linear-gradient(135deg, #fff8f6 0%, #f9eeeb 100%);
+}
+
+.lookup-state-panel.connection-error .lookup-state-badge {
+  border-color: #e4b8ad;
+  background: #f6ded8;
+  color: #a34432;
+}
+
+.workflow-steps li.empty {
+  background: #cfd9e5;
+  box-shadow: none;
+}
+
+.workflow-steps li.warning {
+  background: #d8a354;
+  box-shadow: 0 0 0 3px rgba(200, 120, 32, 0.12);
+}
+
+.workspace {
+  grid-template-columns: minmax(560px, 1.7fr) minmax(340px, 0.9fr);
+  align-items: start;
+}
+
+.map-panel,
+.table-panel {
+  min-width: 0;
+}
+
+.map-panel {
+  position: sticky;
+  top: 18px;
+}
+
+#map {
+  height: 610px;
+  min-height: 520px;
+}
+
+.place-list-wrap {
+  max-height: 700px;
+}
+
+.table-panel .section-title-row.sticky-title {
+  gap: 12px;
+}
+
+.table-panel .tabs {
+  max-width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(500px, 1.45fr) minmax(330px, 0.9fr);
+  }
+
+  #map {
+    height: 570px;
+    min-height: 500px;
+  }
+}
+
+@media (max-width: 920px) {
+  .lookup-state-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lookup-state-copy {
+    flex-direction: column;
+  }
+
+  .lookup-state-actions,
+  .lookup-state-actions button {
+    width: 100%;
+  }
+
+  .lookup-state-actions button {
+    justify-content: center;
+  }
+
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-panel {
+    position: static;
+    order: 0;
+    width: 100%;
+  }
+
+  .table-panel {
+    order: 1;
+    width: 100%;
+  }
+
+  #map {
+    height: min(58vh, 380px);
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 640px) {
+  .lookup-state-copy h2 {
+    font-size: 19px;
+  }
+
+  #map {
+    height: 350px;
+    min-height: 300px;
+  }
+}
+
+
+/* v1.4.4 launcher alignment */
+.launch-form-grid {
+  align-items: end;
+}
+
+.school-field {
+  display: block;
+  align-self: end;
+}
+
+.school-field > label,
+.month-field {
+  display: grid;
+  grid-template-rows: auto 58px;
+  gap: 8px;
+}
+
+.school-field input,
+.month-field input,
+.main-cta-button {
+  height: 58px;
+  min-height: 58px;
+}
+
+.main-cta-slot {
+  align-self: end;
+}
+
+@media (max-width: 920px) {
+  .school-field > label,
+  .month-field {
+    grid-template-rows: auto 56px;
+  }
+
+  .school-field input,
+  .month-field input,
+  .main-cta-button {
+    height: 56px;
+    min-height: 56px;
+  }
+}

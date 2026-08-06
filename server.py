@@ -403,7 +403,9 @@ class CardMapHandler(SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0") or "0")
             raw = self.rfile.read(length).decode("utf-8") if length else "{}"
             body = json.loads(raw or "{}")
-            result = collect_sen_budget_rows(str(body.get("schoolName", "")), str(body.get("baseMonth", "")))
+            # Vercel API와 같은 학교명 줄임말 처리 로직을 사용합니다.
+            from api.sen_fetch import collect_sen_budget_rows as collect_sen_budget_rows_api
+            result = collect_sen_budget_rows_api(str(body.get("schoolName", "")), str(body.get("baseMonth", "")))
             self.write_json(200, {"ok": True, **result})
         except Exception as exc:  # noqa: BLE001
             self.write_json(502, {"ok": False, "error": str(exc), "type": exc.__class__.__name__})
@@ -427,7 +429,7 @@ class CardMapHandler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     os.chdir(BASE_DIR)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), CardMapHandler)
-    print(f"학교카드 사용처 지도 v1.4.2 열린서울교육 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
+    print(f"학교카드 사용처 지도 v1.4.4 열린서울교육 자동 불러오기 서버 실행 중: http://localhost:{PORT}")
     print("종료하려면 Ctrl+C")
     try:
         server.serve_forever()
