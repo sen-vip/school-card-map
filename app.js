@@ -590,7 +590,7 @@ function setAutoStatus(message, isError = false) {
   if (!elements.autoStatusText) return;
   const isBusy = isBusyStatusMessage(message, isError);
   elements.autoStatusText.textContent = stripStaticDots(message);
-  elements.autoStatusText.style.color = isError ? "#c2410c" : "#687386";
+  elements.autoStatusText.style.color = isError ? "#c95645" : "#667085";
   setLoadingDots(elements.autoStatusText, isBusy);
 }
 
@@ -1046,7 +1046,7 @@ function renderSummary() {
   $("#targetCount").textContent = `${state.visibleRows.length}건 · ${formatWon(targetAmount)}`;
   $("#mappedCount").textContent = hasSearchedMap ? `${displayedRows.length}건 · ${formatWon(displayedAmount)}` : "검색 전";
   if (elements.manualCount) elements.manualCount.textContent = hasSearchedMap ? `${manualRows.length}건` : "검색 전";
-  $("#pendingCount").textContent = hasSearchedMap ? `${reviewRows.length}건` : "검색 전";
+  $("#pendingCount").textContent = hasSearchedMap ? `${reviewRows.length + failedRows.length}건` : "검색 전";
   if (elements.failedCount) elements.failedCount.textContent = hasSearchedMap ? `${failedRows.length}건` : "검색 전";
   $("#excludedCount").textContent = `${state.excludedRows.length}건 · ${formatWon(excludedAmount)}`;
 

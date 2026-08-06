@@ -1792,3 +1792,421 @@ input:focus, textarea:focus {
 .footer a:hover {
   border-bottom-color: var(--navy);
 }
+
+/* v1.4.0 color refresh + mobile layout stabilization */
+:root {
+  --bg: #f7f9fc;
+  --panel: #ffffff;
+  --ink: #1d2939;
+  --muted: #667085;
+  --line: #e3e9f2;
+  --navy: #294b76;
+  --navy-2: #3478d4;
+  --blue: #3478d4;
+  --blue-hover: #2868bd;
+  --slate: #697586;
+  --green: #168568;
+  --amber: #c87820;
+  --red: #c95645;
+  --shadow: 0 16px 42px rgba(41, 75, 118, 0.075);
+  --radius: 20px;
+}
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% -4%, rgba(52, 120, 212, 0.1), transparent 28%),
+    linear-gradient(180deg, #fbfdff 0%, var(--bg) 42%, #f1f5fa 100%);
+}
+
+.app-header {
+  background: linear-gradient(135deg, #294b76 0%, #356391 56%, #4b7eaa 100%);
+  padding: 28px 24px 52px;
+}
+
+.header-inner {
+  align-items: center;
+}
+
+.app-header h1 {
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 750;
+}
+
+.app-header .eyebrow {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.lead {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 16px;
+}
+
+.shell {
+  margin-top: -28px;
+}
+
+.panel {
+  border-color: var(--line);
+  box-shadow: var(--shadow);
+}
+
+.launch-panel {
+  border-color: rgba(52, 120, 212, 0.14);
+  background: #ffffff;
+  box-shadow: 0 20px 52px rgba(41, 75, 118, 0.1);
+}
+
+.launch-panel::before {
+  height: 4px;
+  background: linear-gradient(90deg, #294b76 0%, #3478d4 60%, #67a7d8 100%);
+}
+
+.launch-title-row h2 {
+  color: var(--ink);
+  font-weight: 720;
+}
+
+.launch-title-row .eyebrow {
+  color: #4b6f99;
+}
+
+#sampleBtn {
+  background: #f3f6fa;
+  color: #526172;
+  font-weight: 700;
+}
+
+#sampleBtn:hover {
+  background: #eaf0f7;
+  color: var(--navy);
+}
+
+.launch-form-grid {
+  min-width: 0;
+  padding: 15px;
+  border-color: #e5ecf5;
+  background: #f8faff;
+}
+
+.launch-form-grid > *,
+.school-field,
+.month-field,
+.main-cta-slot {
+  min-width: 0;
+  max-width: 100%;
+}
+
+label span,
+.month-field span {
+  color: #344054;
+  font-weight: 650;
+}
+
+input,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+  border-color: #d9e2ee;
+  background: #ffffff;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(52, 120, 212, 0.12);
+}
+
+.month-field {
+  overflow: hidden;
+}
+
+.month-field input,
+input[type="month"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button,
+.tab,
+.setting-pill,
+.badge,
+.mini-action {
+  font-weight: 700;
+}
+
+.primary-button,
+.main-cta-button {
+  background: var(--blue);
+  color: #ffffff;
+}
+
+.primary-button:hover,
+.main-cta-button:hover {
+  background: var(--blue-hover);
+  filter: none;
+}
+
+.main-cta-button {
+  min-width: 220px;
+  box-shadow: 0 12px 26px rgba(52, 120, 212, 0.23);
+}
+
+.field-status {
+  font-weight: 600;
+}
+
+.workflow-status-row {
+  border-color: #dfe8f3;
+  background: #f5f8fc;
+}
+
+/* The status sentence explains the current step; the list works as a calm progress track. */
+.workflow-steps {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.workflow-steps:not(:has(.active, .done, .error)) {
+  display: none;
+}
+
+.workflow-steps li {
+  min-height: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #dfe7f1;
+  color: transparent;
+  font-size: 0;
+  box-shadow: none;
+}
+
+.workflow-steps li.active {
+  background: var(--blue);
+  box-shadow: 0 0 0 3px rgba(52, 120, 212, 0.12);
+}
+
+.workflow-steps li.done {
+  background: #69b9a0;
+}
+
+.workflow-steps li.error {
+  background: var(--red);
+}
+
+.workflow-steps li.active::after {
+  display: none;
+}
+
+.settings-details {
+  margin-top: 12px;
+  background: #fbfcfe;
+}
+
+.settings-details summary {
+  color: #526172;
+  font-weight: 700;
+}
+
+.settings-details .settings-line {
+  margin: 12px 0 0;
+  justify-content: flex-start;
+}
+
+.setting-pill {
+  background: #ffffff;
+  color: #526172;
+}
+
+.setting-pill.seoul-only {
+  background: #eef5ff;
+  color: var(--navy);
+  border-color: #d7e6f8;
+}
+
+.setting-pill.ready {
+  background: #edf9f5;
+  color: var(--green);
+  border-color: #c9eadf;
+}
+
+/* Four primary metrics are enough for the main decision. Detailed counts remain in tabs. */
+.summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.summary-card.metric-detail {
+  display: none;
+}
+
+.summary-card {
+  border-color: var(--line);
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(41, 75, 118, 0.05);
+}
+
+.summary-card span {
+  font-weight: 650;
+}
+
+.summary-card strong {
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.summary-card.good strong,
+.summary-card.strong-good strong {
+  color: var(--green);
+}
+
+.summary-card.warn strong {
+  color: var(--amber);
+}
+
+.map-panel {
+  border-color: rgba(52, 120, 212, 0.14);
+}
+
+#map {
+  border-color: #dce5ef;
+}
+
+.dot.navy { background: var(--blue); }
+.dot.amber { background: var(--amber); }
+.dot.green { background: var(--green); }
+
+.tab.active {
+  color: var(--navy);
+}
+
+.place-card-actions .mini-action.strong {
+  background: var(--blue);
+}
+
+.footer a {
+  color: var(--blue);
+}
+
+@media (max-width: 920px) {
+  .app-header {
+    padding: 22px 16px 46px;
+  }
+
+  .shell {
+    margin-top: -24px;
+    padding-inline: 14px;
+  }
+
+  .launch-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    padding: 12px;
+  }
+
+  .main-cta-slot,
+  .main-cta-button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .summary-grid.has-data {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #map {
+    height: min(54vh, 380px);
+    min-height: 310px;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-header h1 {
+    font-size: 28px;
+  }
+
+  .lead {
+    font-size: 14px;
+  }
+
+  .launch-title-row .help-text {
+    margin-bottom: 2px;
+  }
+
+  .launch-status-row {
+    margin-top: 9px;
+  }
+
+  .workflow-steps {
+    display: grid;
+    overflow: visible;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+
+  .workflow-steps:not(:has(.active, .done, .error)) {
+    display: none;
+  }
+
+  .workflow-steps li {
+    min-width: 0;
+    min-height: 7px;
+  }
+
+  .summary-card {
+    min-width: 0;
+    padding: 13px;
+  }
+
+  .summary-card strong {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 430px) {
+  .shell {
+    padding-inline: 10px;
+  }
+
+  .panel,
+  .launch-panel {
+    padding: 15px;
+  }
+
+  .launch-form-grid {
+    padding: 10px;
+  }
+
+  .summary-grid.has-data {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #map {
+    height: 340px;
+    min-height: 290px;
+  }
+}
+
+/* v1.4.0 mobile status row must not keep the desktop 260px flex basis */
+@media (max-width: 920px) {
+  .launch-status-row .field-status {
+    flex: 0 1 auto;
+    width: 100%;
+    min-height: 0;
+  }
+}
