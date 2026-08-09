@@ -1098,12 +1098,12 @@ function renderTabs() {
   };
   const tabs = state.mode === "mapped"
     ? [
-        ["mapped", "지도 항목"],
+        ["mapped", "지도 표시"],
         ["excluded", "지도 제외"],
         ["all", "전체"],
       ]
     : [
-        ["target", "지도 항목"],
+        ["target", "지도 표시"],
         ["excluded", "지도 제외"],
         ["all", "전체"],
       ];
