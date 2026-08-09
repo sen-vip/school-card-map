@@ -2495,12 +2495,34 @@ function fitMapToMarkers() {
 }
 
 
-// v1.6.3 compact sticky top bar help action
+// v1.6.4 compact help drawer
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
-const helpPanel = document.getElementById("helpPanel");
-if (topbarHelpBtn && helpPanel) {
-  topbarHelpBtn.addEventListener("click", () => {
-    helpPanel.open = true;
-    helpPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+const helpModal = document.getElementById("helpModal");
+const helpCloseBtn = document.getElementById("helpCloseBtn");
+
+function openHelpModal() {
+  if (!helpModal) return;
+  helpModal.classList.remove("hidden");
+  topbarHelpBtn?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("modal-open");
+  requestAnimationFrame(() => helpCloseBtn?.focus());
 }
+
+function closeHelpModal() {
+  if (!helpModal) return;
+  helpModal.classList.add("hidden");
+  topbarHelpBtn?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("modal-open");
+  topbarHelpBtn?.focus();
+}
+
+topbarHelpBtn?.addEventListener("click", openHelpModal);
+helpCloseBtn?.addEventListener("click", closeHelpModal);
+helpModal?.addEventListener("click", (event) => {
+  if (event.target === helpModal) closeHelpModal();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && helpModal && !helpModal.classList.contains("hidden")) {
+    closeHelpModal();
+  }
+});

@@ -20,7 +20,7 @@
           </svg>
         </span>
         <div class="brand-copy">
-          <p class="eyebrow">학돌랩 · 카드지도 v1.6.3</p>
+          <p class="eyebrow">학돌랩 · 카드지도 v1.6.4</p>
           <h1>학교카드 사용지도</h1>
           <p class="lead">서울 학교의 업무추진비 사용처를 지도에서 한눈에 확인하세요.</p>
         </div>
@@ -30,7 +30,7 @@
           <span class="meta-pill"><span aria-hidden="true">⌖</span> 서울</span>
           <span class="meta-pill"><span aria-hidden="true">▣</span> 지난달 기준</span>
         </div>
-        <button type="button" class="topbar-help" id="topbarHelpBtn" aria-controls="helpPanel">도움말</button>
+        <button type="button" class="topbar-help" id="topbarHelpBtn" aria-controls="helpModal" aria-expanded="false">도움말</button>
       </div>
     </div>
   </header>
@@ -247,28 +247,84 @@
     </details>
 
 
-    <details class="panel rules-panel support-details" id="helpPanel" aria-labelledby="rules-title">
-      <summary class="manual-summary support-summary">
-        <span>
-          <span class="eyebrow">보조 정보</span>
-          <strong id="rules-title">지도에 표시하지 않는 항목</strong>
-        </span>
-        <em>온라인몰·공과금처럼 위치 표시가 어울리지 않는 항목</em>
-      </summary>
-      <div class="manual-content support-content">
-        <div class="rule-grid">
+  </main>
+
+
+  <div class="help-modal hidden" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <aside class="help-drawer" aria-describedby="helpModalDesc">
+      <div class="help-drawer-head">
+        <div>
+          <p class="eyebrow">사용 안내</p>
+          <h2 id="helpModalTitle">학교카드 사용지도 도움말</h2>
+        </div>
+        <button type="button" class="ghost-button icon-button help-close" id="helpCloseBtn" aria-label="도움말 닫기">×</button>
+      </div>
+
+      <p class="help-intro" id="helpModalDesc">처음 사용해도 바로 확인할 수 있도록 핵심 사용법과 지도 표시 기준만 간단히 정리했습니다.</p>
+
+      <div class="help-section-list">
+        <section class="help-guide-card">
+          <span class="help-guide-number" aria-hidden="true">01</span>
           <div>
-            <h3>집행목적 제외</h3>
+            <h3>학교카드맵은 무엇인가요?</h3>
+            <p>열린서울교육에 공개된 학교 업무추진비 자료를 불러와 사용처를 지도와 목록에서 함께 확인하는 도구입니다. 서울특별시교육청 소속 학교를 대상으로 하며, 기본 기준월은 지난달입니다.</p>
+          </div>
+        </section>
+
+        <section class="help-guide-card">
+          <span class="help-guide-number" aria-hidden="true">02</span>
+          <div>
+            <h3>이렇게 사용하세요</h3>
+            <p><strong>학교명 입력 → 기준월 선택 → 사용처 지도 만들기</strong> 순서로 이용합니다. 지도에서 위치를 확인하고, 오른쪽 목록에서 집행일자·금액·집행목적을 함께 볼 수 있습니다.</p>
+          </div>
+        </section>
+
+        <section class="help-guide-card">
+          <span class="help-guide-number" aria-hidden="true">03</span>
+          <div>
+            <h3>위치 확인이 필요한 경우</h3>
+            <p>장소명이 모호하거나 같은 이름의 업체가 여러 곳이면 실제 위치와 다르게 검색될 수 있습니다. <strong>위치 확인하기</strong>가 표시된 항목은 검색 결과를 확인하고, 필요한 경우 위치를 직접 수정해 주세요.</p>
+          </div>
+        </section>
+
+        <section class="help-guide-card">
+          <span class="help-guide-number" aria-hidden="true">04</span>
+          <div>
+            <h3>지도에 표시하지 않는 항목</h3>
+            <p>경조사비처럼 실제 방문 장소가 특정되지 않거나 온라인몰·인터넷 결제처럼 지도 표시가 적절하지 않은 내역은 지도에서 제외합니다. 제외된 내역도 삭제되지 않으며 <strong>지도 제외</strong>에서 확인할 수 있습니다.</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="help-status-section" aria-labelledby="helpStatusTitle">
+        <h3 id="helpStatusTitle">표시 상태 안내</h3>
+        <div class="help-status-list">
+          <div><span class="help-status-badge complete">표시 완료</span><p>위치 검색이 완료되어 지도에 표시된 내역</p></div>
+          <div><span class="help-status-badge check">확인 필요</span><p>검색 결과를 한 번 확인하면 좋은 내역</p></div>
+          <div><span class="help-status-badge excluded">지도 제외</span><p>지도에는 표시하지 않고 목록에서 확인하는 내역</p></div>
+        </div>
+      </section>
+
+      <details class="help-rules-details">
+        <summary>지도 제외 기준 자세히 보기</summary>
+        <div class="help-rules-body">
+          <div>
+            <h4>집행목적 제외</h4>
             <p id="purposeRules"></p>
           </div>
           <div>
-            <h3>집행장소 제외</h3>
+            <h4>집행장소 제외</h4>
             <p id="placeRules"></p>
           </div>
         </div>
+      </details>
+
+      <div class="help-source-note" role="note">
+        <strong>자료 기준</strong>
+        <p>열린서울교육에 공개된 업무추진비 자료를 기준으로 하므로 실제 카드 사용내역과 공개 시점에 차이가 있을 수 있습니다.</p>
       </div>
-    </details>
-  </main>
+    </aside>
+  </div>
 
   <div class="location-modal hidden" id="locationModal" role="dialog" aria-modal="true" aria-labelledby="locationModalTitle">
     <div class="location-dialog">
@@ -291,7 +347,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용처 지도 · 카드지도 v1.6.3 · 학돌랩</p>
+    <p>학교카드 사용처 지도 · 카드지도 v1.6.4 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>
