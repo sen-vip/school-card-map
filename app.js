@@ -1436,8 +1436,7 @@ function focusPlaceOnMap(placeKey) {
   if (state.map.getLevel() > 4) state.map.setLevel(4);
   group.infowindow?.open(state.map, group.marker);
 
-  elements.tableWrap.querySelectorAll(".row-focus, .card-focus").forEach((row) => row.classList.remove("row-focus", "card-focus"));
-  elements.tableWrap.querySelectorAll(`[data-place-key="${CSS.escape(placeKey)}"]`).forEach((row) => row.classList.add(row.classList.contains("place-card") ? "card-focus" : "row-focus"));
+  // Keep list cards visually neutral. Clicking a row only moves the map.
   setStatus(`${group.place} 위치로 이동했습니다.`);
 }
 
@@ -2465,9 +2464,8 @@ function createMarker(group) {
 
     // Keep the right-hand list synchronized with the map selection.
     const listCard = elements.tableWrap?.querySelector(`[data-place-key="${CSS.escape(group.key)}"]`);
-    elements.tableWrap?.querySelectorAll(".row-focus, .card-focus").forEach((row) => row.classList.remove("row-focus", "card-focus"));
     if (listCard) {
-      listCard.classList.add(listCard.classList.contains("place-card") ? "card-focus" : "row-focus");
+      // Synchronize position only; do not add a persistent card highlight.
       listCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   });

@@ -3983,3 +3983,102 @@ textarea:focus {
     min-height: 280px;
   }
 }
+
+/* v1.6.2 — restore map emphasis and remove visual jitter / selection noise */
+
+/* Desktop: return to the map-first ratio used before v1.5 (about 65:35). */
+@media (min-width: 1041px) {
+  .workspace {
+    grid-template-columns: minmax(560px, 1.7fr) minmax(340px, .9fr);
+  }
+}
+
+/* Clicking a list item or marker should move/sync only, not paint the whole card blue. */
+.place-card.card-focus,
+.place-card.card-focus:hover,
+tr.row-focus,
+tr.row-focus:hover {
+  border-color: #edf0f3 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Review action: soft amber treatment. This intentionally outranks the generic .strong blue rule. */
+.place-card-actions .mini-action.strong.warn-action {
+  background: #fff7e8;
+  color: #9a5a08;
+  border: 1px solid #efc77d;
+  box-shadow: none;
+}
+
+.place-card-actions .mini-action.strong.warn-action:hover {
+  background: #ffefcf;
+  color: #7f4700;
+  border-color: #e4b75e;
+}
+
+/* Remove the legacy variable-width dot animation everywhere: it visibly reflows status lines. */
+.loading-dots::after,
+.status-text.loading-dots::after,
+.field-status.loading-dots::after,
+.primary-button.is-loading::after,
+.workflow-steps li.active::after {
+  content: none !important;
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  animation: none !important;
+}
+
+/* Busy feedback uses a fixed-size spinner, so text width never changes. */
+.status-text.loading-dots,
+.field-status.loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.status-text.loading-dots::before,
+.field-status.loading-dots::before {
+  content: "";
+  display: inline-block;
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #d5deea;
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: stable-status-spin .75s linear infinite;
+}
+
+.primary-button.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.primary-button.is-loading::before {
+  content: "";
+  display: inline-block;
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255,255,255,.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: stable-status-spin .75s linear infinite;
+}
+
+@keyframes stable-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-text.loading-dots::before,
+  .field-status.loading-dots::before,
+  .primary-button.is-loading::before {
+    animation: none;
+  }
+}
