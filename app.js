@@ -1261,7 +1261,7 @@ function renderKakaoMapLink(group, row = null, compact = false) {
   if (!group || !["mapped", "manual", "needs_review", "failed"].includes(group.status)) return "";
   const url = buildKakaoMapUrl(group, row);
   if (!url) return "";
-  const label = compact ? "카카오맵" : "카카오맵 열기";
+  const label = "카카오맵";
   return `<a class="kakao-map-link${compact ? " compact" : ""}" data-kakao-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(row?.place || group.place || "사용처")} 카카오맵에서 열기">${label}<span aria-hidden="true">↗</span></a>`;
 }
 
@@ -2525,7 +2525,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.6.5 Kakao Map outbound links + v1.6.4 compact help drawer
+// v1.6.6 subtle Kakao Map links + v1.6.4 compact help drawer
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");
