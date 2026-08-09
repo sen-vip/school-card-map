@@ -2462,6 +2462,14 @@ function createMarker(group) {
   kakao.maps.event.addListener(marker, "click", () => {
     state.infowindows.forEach((item) => item.close());
     infowindow.open(state.map, marker);
+
+    // Keep the right-hand list synchronized with the map selection.
+    const listCard = elements.tableWrap?.querySelector(`[data-place-key="${CSS.escape(group.key)}"]`);
+    elements.tableWrap?.querySelectorAll(".row-focus, .card-focus").forEach((row) => row.classList.remove("row-focus", "card-focus"));
+    if (listCard) {
+      listCard.classList.add(listCard.classList.contains("place-card") ? "card-focus" : "row-focus");
+      listCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
   });
 
   group.marker = marker;
