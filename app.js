@@ -1244,6 +1244,27 @@ function renderTable() {
   elements.tableWrap.innerHTML = `<div class="place-list" role="list">${rows.map((row) => renderPlaceCard(row, tab)).join("")}</div>`;
 }
 
+function buildKakaoMapUrl(group, row = null) {
+  if (group && Number.isFinite(group.lat) && Number.isFinite(group.lng)) {
+    const label = cleanCell(group.placeName || group.place || row?.place || "사용처");
+    return `https://map.kakao.com/link/map/${encodeURIComponent(label)},${group.lat},${group.lng}`;
+  }
+
+  const place = cleanCell(row?.place || group?.place || "");
+  if (!place) return "";
+  const areaHint = getEffectiveAreaHint();
+  const query = normalizeSearchQuery([areaHint, place].filter(Boolean).join(" ")) || place;
+  return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
+}
+
+function renderKakaoMapLink(group, row = null, compact = false) {
+  if (!group || !["mapped", "manual", "needs_review", "failed"].includes(group.status)) return "";
+  const url = buildKakaoMapUrl(group, row);
+  if (!url) return "";
+  const label = compact ? "카카오맵" : "카카오맵 열기";
+  return `<a class="kakao-map-link${compact ? " compact" : ""}" data-kakao-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(row?.place || group.place || "사용처")} 카카오맵에서 열기">${label}<span aria-hidden="true">↗</span></a>`;
+}
+
 function renderPlaceCard(row, tab) {
   const group = getGroupForRow(row);
   const isDisplayed = state.mode === "mapped" && DISPLAY_STATUSES.includes(group?.status);
@@ -1253,6 +1274,7 @@ function renderPlaceCard(row, tab) {
   const purpose = row.purpose || "집행목적 없음";
   const info = getCardMapInfo(group, row, tab);
   const action = renderCardAction(group, row, tab);
+  const kakaoLink = renderKakaoMapLink(group, row);
   const titleAttr = canJump ? "지도에서 위치 보기" : "";
 
   return `<article class="place-card ${toneClass} ${canJump ? "map-card" : ""}" role="listitem" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}" title="${titleAttr}"` : ""}>
@@ -1269,6 +1291,7 @@ function renderPlaceCard(row, tab) {
         <span>${escapeHtml(info.label)}</span>
         <strong>${escapeHtml(info.primary)}</strong>
         ${info.secondary ? `<em>${escapeHtml(info.secondary)}</em>` : ""}
+        ${kakaoLink}
       </div>
     </div>
     ${action ? `<div class="place-card-actions">${action}</div>` : ""}
@@ -1412,6 +1435,12 @@ function closeInfoWindow(placeKey) {
 }
 
 function handleTableClick(event) {
+  const kakaoLink = event.target.closest("[data-kakao-map-link]");
+  if (kakaoLink) {
+    event.stopPropagation();
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-place-key]");
   if (editButton) {
     event.preventDefault();
@@ -2454,6 +2483,7 @@ function createMarker(group) {
     <div>${escapeHtml(statusLabel)} · ${group.rows.length}건 · ${formatWon(group.amount)}</div>
     <div>${escapeHtml(group.placeName || "")}</div>
     <div>${escapeHtml(group.address)}</div>
+    <div class="info-window-actions">${renderKakaoMapLink(group, group.rows[0] || null, true)}</div>
     <ul>${details}${more}</ul>
   </div>`;
   const infowindow = new kakao.maps.InfoWindow({ content });
@@ -2495,7 +2525,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.6.4 compact help drawer
+// v1.6.5 Kakao Map outbound links + v1.6.4 compact help drawer
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");
