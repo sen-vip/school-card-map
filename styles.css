@@ -4551,3 +4551,289 @@ tr.row-focus:hover {
 @media (max-width: 640px) {
   .place-map-info .kakao-map-link { margin-left: 0; }
 }
+
+/* v1.7.0 — Figma refinement: lighter type, fewer cards, thin borders */
+:root {
+  --shadow: none;
+  --radius: 12px;
+}
+
+/* Product chrome: almost flat, one divider, restrained weights. */
+.app-header {
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.app-header h1 { font-weight: 680; letter-spacing: -0.025em; }
+.app-header .lead { color: #7b8492; font-weight: 400; }
+.meta-pill,
+.topbar-help { font-weight: 600; }
+.topbar-help { border-color: #dce2e9; }
+
+.shell { max-width: 1320px; }
+.panel,
+.launch-panel,
+.map-panel,
+.table-panel,
+.summary-card,
+.lookup-state-panel,
+.cta-panel {
+  box-shadow: none !important;
+}
+
+.launch-panel {
+  padding: 18px;
+  border-radius: 12px;
+}
+.launch-title-row h2 { font-size: 18px; font-weight: 650; }
+.launch-title-row .help-text { font-weight: 400; }
+.scope-notice strong { font-weight: 600; }
+.launch-form-grid {
+  padding: 10px;
+  border-color: #e8ebef;
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+label span,
+.month-field span { font-weight: 600; }
+.primary-button,
+.secondary-button,
+.ghost-button,
+.main-cta-button { font-weight: 650; }
+
+/* Compact result headers. */
+.map-panel,
+.table-panel { padding: 16px; border-radius: 12px; }
+.map-panel .eyebrow,
+.table-panel .eyebrow { display: none; }
+.map-panel h2,
+.table-panel h2 { font-size: 16px; font-weight: 650; letter-spacing: -0.015em; }
+.map-panel .section-title-row,
+.table-panel .section-title-row { margin-bottom: 10px; }
+#map { border-radius: 10px; }
+.map-legend { color: #87909e; font-weight: 400; }
+
+/* Summary is a quiet metric strip, not a stack of decorated cards. */
+.summary-card {
+  padding: 12px 13px;
+  border-radius: 10px;
+}
+.summary-card span { font-weight: 550; }
+.summary-card strong { font-size: 18px; font-weight: 650; }
+
+/* Figma-like tabs: no chunky segmented control, only a calm active underline. */
+.table-panel .tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #e8ebef;
+  border-radius: 0;
+  background: transparent;
+}
+.table-panel .tab {
+  position: relative;
+  min-height: 36px;
+  padding: 7px 6px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #7a8493;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+.table-panel .tab::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+.table-panel .tab.active {
+  background: transparent;
+  color: #315b96;
+  box-shadow: none;
+}
+.table-panel .tab.active::after { background: #315b96; }
+.table-panel .tab strong,
+.table-panel .tab.active strong {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #f1f3f6;
+  color: #7b8492;
+  font-size: 10px;
+  font-weight: 600;
+}
+.table-panel .tab.active strong {
+  background: #eef4fb;
+  color: #315b96;
+}
+.table-hint { margin: 8px 1px 10px; font-weight: 400; }
+
+/* Desktop list: one surface with divider rows instead of repeated rounded cards. */
+.place-list-wrap {
+  padding: 0;
+  border: 1px solid #e6eaf0;
+  border-radius: 10px;
+  background: #fff;
+}
+.place-list { display: grid; gap: 0; }
+.place-card,
+.place-card.card-review,
+.place-card.card-failed,
+.place-card.card-manual,
+.place-card.card-muted,
+.place-card.card-focus,
+.place-card.card-focus:hover {
+  border: 0 !important;
+  border-bottom: 1px solid #edf0f3 !important;
+  border-radius: 0;
+  background: #fff !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.place-card {
+  gap: 10px;
+  padding: 13px 12px;
+}
+.place-card:last-child { border-bottom: 0 !important; }
+.place-card:hover,
+.place-card.map-card:hover {
+  background: #fafbfc !important;
+  border-bottom-color: #e7ebf0 !important;
+  box-shadow: none !important;
+}
+.place-card-head { gap: 10px; }
+.place-title-wrap { gap: 7px; }
+.place-title {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.place-amount {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.place-meta {
+  margin: 5px 0 7px;
+  color: #778190;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.place-map-info {
+  gap: 5px;
+  color: #657184;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.place-map-info span {
+  color: #8490a1;
+  font-weight: 600;
+}
+.place-map-info strong {
+  color: #455266;
+  font-size: 12px;
+  font-weight: 600;
+}
+.place-map-info em { color: #7d8796; }
+.badge {
+  min-height: 21px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* Secondary actions: same restrained visual family as an '주소 복사' control. */
+.place-card-actions .mini-action,
+.place-card-actions .mini-action.strong,
+.place-card-actions .mini-action.ghost {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  background: #fff;
+  color: #526174;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: none;
+}
+.place-card-actions .mini-action:hover,
+.place-card-actions .mini-action.strong:hover,
+.place-card-actions .mini-action.ghost:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #315b96;
+}
+.place-card-actions .mini-action.strong.warn-action,
+.place-card-actions .mini-action.strong.warn-action:hover {
+  border: 1px solid #e5d4b8;
+  background: #fff;
+  color: #8a5a14;
+  font-weight: 600;
+}
+.place-card-actions .mini-action.strong.warn-action:hover { background: #fffaf2; }
+
+/* Kakao link: thin and quiet, no arrow or brand-yellow treatment. */
+.kakao-map-link,
+.info-window .kakao-map-link.compact {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  background: #fff;
+  color: #526174;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: none;
+}
+.kakao-map-link:hover,
+.info-window .kakao-map-link.compact:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #315b96;
+}
+.kakao-map-link span { display: none !important; }
+.place-map-info .kakao-map-link { margin-left: 1px; }
+
+/* Keep the established map-first desktop ratio. */
+@media (min-width: 1041px) {
+  .workspace { grid-template-columns: minmax(600px, 1.7fr) minmax(340px, .9fr); gap: 12px; }
+}
+
+/* Mobile keeps individual cards for touch separation, but uses the same quiet typography/actions. */
+@media (max-width: 720px) {
+  .place-list-wrap { border: 0; border-radius: 0; background: transparent; }
+  .place-list { gap: 9px; }
+  .place-card,
+  .place-card.card-review,
+  .place-card.card-failed,
+  .place-card.card-manual,
+  .place-card.card-muted,
+  .place-card.card-focus,
+  .place-card.card-focus:hover {
+    border: 1px solid #e6eaf0 !important;
+    border-radius: 11px;
+    background: #fff !important;
+    padding: 12px;
+  }
+  .place-card:last-child { border-bottom: 1px solid #e6eaf0 !important; }
+  .place-card-actions .mini-action,
+  .place-card-actions .mini-action.strong,
+  .place-card-actions .mini-action.ghost {
+    width: auto;
+    min-height: 34px;
+    padding-inline: 11px;
+  }
+  .place-card-actions { justify-content: flex-end; }
+}

@@ -1262,7 +1262,7 @@ function renderKakaoMapLink(group, row = null, compact = false) {
   const url = buildKakaoMapUrl(group, row);
   if (!url) return "";
   const label = "카카오맵";
-  return `<a class="kakao-map-link${compact ? " compact" : ""}" data-kakao-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(row?.place || group.place || "사용처")} 카카오맵에서 열기">${label}<span aria-hidden="true">↗</span></a>`;
+  return `<a class="kakao-map-link${compact ? " compact" : ""}" data-kakao-map-link href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(row?.place || group.place || "사용처")} 카카오맵에서 열기">${label}</a>`;
 }
 
 function renderPlaceCard(row, tab) {
@@ -2525,7 +2525,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.6.6 subtle Kakao Map links + v1.6.4 compact help drawer
+// v1.7.0 Figma refinement + subtle Kakao Map links + compact help drawer
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");
