@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#315B96" />
   <title>학교카드 사용지도</title>
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="./favicon-32.png" type="image/png" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -13,14 +14,10 @@
     <div class="header-inner">
       <div class="brand-block">
         <span class="brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" role="img">
-            <path d="M4.5 5.8 9 4l6 2 4.5-1.8v14L15 20l-6-2-4.5 1.8v-14Z"></path>
-            <path d="M9 4v14M15 6v14"></path>
-            <circle cx="15" cy="7" r="2.25"></circle>
-          </svg>
+          <img src="./app-icon.png" alt="" />
         </span>
         <div class="brand-copy">
-          <p class="eyebrow">학돌랩 · 카드지도 v1.7.0</p>
+          <p class="eyebrow">학돌랩 · 카드지도 v1.7.1</p>
           <h1>학교카드 사용지도</h1>
           <p class="lead">서울 학교의 업무추진비 사용처를 지도에서 한눈에 확인하세요.</p>
         </div>
@@ -41,7 +38,7 @@
         <div>
           <p class="eyebrow">검색 및 필터</p>
           <h2 id="setup-title">학교와 기준월을 선택하세요</h2>
-          <p class="help-text">학교명과 기준월을 선택하면 공개자료 수집부터 위치 검색까지 한 번에 진행합니다.</p>
+          <p class="help-text">학교를 먼저 확인한 뒤 기준월을 선택하면 공개자료 수집과 위치 검색이 이어집니다.</p>
           <div class="scope-notice" role="note" aria-label="서비스 이용 범위 안내">
             <strong>서울 학교만 지원</strong>
             <span>열린서울교육 업무추진비 공개자료를 사용하므로 다른 시·도 학교는 조회할 수 없습니다.</span>
@@ -60,20 +57,20 @@
           <span>기준월 <em>기본 지난달</em></span>
           <input id="baseMonth" type="month" />
         </label>
-        <div class="main-cta-slot" aria-label="사용처 지도 만들기 실행">
-          <button type="button" class="primary-button step-button large-action main-cta-button" id="fetchSenBtn"><small>시작</small> 사용처 지도 만들기</button>
+        <div class="main-cta-slot" aria-label="학교 조회 또는 사용처 지도 만들기 실행">
+          <button type="button" class="primary-button step-button large-action main-cta-button" id="fetchSenBtn" data-action="lookup"><small>1단계</small> 학교 조회</button>
         </div>
       </div>
 
       <div class="launch-status-row">
-        <em id="schoolStatus" class="field-status">학교 확인 전 · 학교 주소에서 검색 지역을 자동으로 잡습니다.</em>
+        <em id="schoolStatus" class="field-status">학교 확인 전 · 학교명을 입력하고 Enter 또는 [학교 조회]를 눌러주세요.</em>
       </div>
 
       <input id="senSourceUrl" type="hidden" value="https://open.sen.go.kr/fus/MI000000000000000514/finance/list0010v.do" />
       <input id="senProxyUrl" type="hidden" value="/sen-fetch" readonly />
 
       <div class="workflow-status-row">
-        <span id="autoStatusText" class="status-text" role="status">학교명과 기준월을 확인한 뒤 사용처 지도 만들기를 눌러주세요.</span>
+        <span id="autoStatusText" class="status-text" role="status">학교명을 먼저 조회한 뒤 기준월을 확인하고 지도를 만들어주세요.</span>
       </div>
 
       <ol class="workflow-steps" id="workflowSteps" aria-label="진행 상태">
@@ -189,12 +186,12 @@
           <div id="map" class="map-placeholder">
             <div>
               <strong>지도 대기 중</strong>
-              <p>별도 설정 없이 사용처 지도 만들기를 누르면 마커가 표시됩니다.</p>
+              <p>학교 조회 후 [이 학교 지도 만들기]를 누르면 마커가 표시됩니다.</p>
             </div>
           </div>
           <div id="mapNotice" class="map-notice hidden">
             <strong>아직 지도를 만들지 않았습니다.</strong>
-            <p>자료를 확인한 뒤 [사용처 지도 만들기]를 누르면 사용처 위치를 검색합니다.</p>
+            <p>학교 조회 후 [이 학교 지도 만들기]를 누르면 사용처 위치를 검색합니다.</p>
           </div>
         </div>
         <div class="map-legend">
@@ -214,9 +211,9 @@
           </div>
         </div>
         <div class="tabs" id="resultTabs" role="tablist" aria-label="사용처 목록 보기"></div>
-        <p class="table-hint" id="tableHint">[사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 순서대로 진행됩니다.</p>
+        <p class="table-hint" id="tableHint">학교를 조회한 뒤 [이 학교 지도 만들기]를 누르면 자료 수집과 지도 생성이 순서대로 진행됩니다.</p>
         <div id="tableWrap" class="table-wrap empty-state">
-          <p>아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 <strong>사용처 지도 만들기</strong>를 눌러주세요.</p>
+          <p>아직 정리된 자료가 없습니다. 학교명을 입력하고 <strong>학교 조회</strong>부터 진행해 주세요.</p>
         </div>
       </section>
     </section>
@@ -241,7 +238,7 @@
         <div class="action-row">
           <button type="button" class="secondary-button step-button" id="parseOnlyBtn"><small>1단계</small> 자료 확인하기</button>
           <button type="button" class="primary-button step-button" id="makeMapBtn"><small>2단계</small> 지도 만들기</button>
-          <span id="statusText" class="status-text" role="status">보조 기능입니다. 일반 사용자는 위의 [사용처 지도 만들기]만 누르면 됩니다.</span>
+          <span id="statusText" class="status-text" role="status">보조 기능입니다. 일반 사용자는 위에서 학교를 조회한 뒤 지도를 만들면 됩니다.</span>
         </div>
       </div>
     </details>
@@ -275,7 +272,7 @@
           <span class="help-guide-number" aria-hidden="true">02</span>
           <div>
             <h3>이렇게 사용하세요</h3>
-            <p><strong>학교명 입력 → 기준월 선택 → 사용처 지도 만들기</strong> 순서로 이용합니다. 지도에서 위치를 확인하고, 오른쪽 목록에서 집행일자·금액·집행목적을 함께 볼 수 있습니다.</p>
+            <p><strong>학교명 입력 → 학교 조회 → 기준월 확인 → 이 학교 지도 만들기</strong> 순서로 이용합니다. 학교명 입력 후 Enter를 눌러도 학교 조회가 실행됩니다. 지도에서 위치를 확인하고, 오른쪽 목록에서 집행일자·금액·집행목적을 함께 볼 수 있습니다.</p>
           </div>
         </section>
 
@@ -347,7 +344,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용처 지도 · 카드지도 v1.7.0 · 학돌랩</p>
+    <p>학교카드 사용처 지도 · 카드지도 v1.7.1 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>

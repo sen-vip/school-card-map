@@ -4837,3 +4837,84 @@ label span,
   }
   .place-card-actions { justify-content: flex-end; }
 }
+
+/* v1.7.1 — simplified app icon + explicit school lookup → map flow */
+.brand-icon {
+  overflow: hidden;
+  border: 0 !important;
+  background: transparent !important;
+}
+.brand-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* Keep the two-step action visible without adding animation or visual noise. */
+.main-cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.main-cta-button small {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.16);
+  color: rgba(255,255,255,.92);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.main-cta-button[data-action="lookup"] {
+  background: #315b96;
+}
+.main-cta-button.map-ready {
+  background: #2563eb;
+}
+.main-cta-button.map-ready:hover,
+.main-cta-button[data-action="lookup"]:hover {
+  background: #1f56c5;
+}
+
+.launch-status-row .field-status[data-tone="ready"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #177a57;
+  font-weight: 550;
+}
+.launch-status-row .field-status[data-tone="ready"]::before {
+  content: "✓";
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #14805a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+#resultWorkspace {
+  scroll-margin-top: 86px;
+}
+
+@media (max-width: 640px) {
+  .main-cta-button {
+    gap: 6px;
+  }
+  .main-cta-button small {
+    min-height: 18px;
+    padding-inline: 6px;
+    font-size: 9.5px;
+  }
+}
