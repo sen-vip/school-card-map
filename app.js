@@ -2493,3 +2493,14 @@ function fitMapToMarkers() {
   if (!state.map || !state.markers.length || !state.bounds) return;
   state.map.setBounds(state.bounds);
 }
+
+
+// v1.6.3 compact sticky top bar help action
+const topbarHelpBtn = document.getElementById("topbarHelpBtn");
+const helpPanel = document.getElementById("helpPanel");
+if (topbarHelpBtn && helpPanel) {
+  topbarHelpBtn.addEventListener("click", () => {
+    helpPanel.open = true;
+    helpPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}

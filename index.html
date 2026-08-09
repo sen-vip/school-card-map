@@ -20,14 +20,17 @@
           </svg>
         </span>
         <div class="brand-copy">
-          <p class="eyebrow">학돌랩 · 카드지도 v1.6.2</p>
+          <p class="eyebrow">학돌랩 · 카드지도 v1.6.3</p>
           <h1>학교카드 사용지도</h1>
           <p class="lead">서울 학교의 업무추진비 사용처를 지도에서 한눈에 확인하세요.</p>
         </div>
       </div>
-      <div class="header-meta" aria-label="서비스 범위">
-        <span class="meta-pill"><span aria-hidden="true">⌖</span> 서울</span>
-        <span class="meta-pill"><span aria-hidden="true">▣</span> 지난달 기준</span>
+      <div class="header-actions">
+        <div class="header-meta" aria-label="서비스 범위">
+          <span class="meta-pill"><span aria-hidden="true">⌖</span> 서울</span>
+          <span class="meta-pill"><span aria-hidden="true">▣</span> 지난달 기준</span>
+        </div>
+        <button type="button" class="topbar-help" id="topbarHelpBtn" aria-controls="helpPanel">도움말</button>
       </div>
     </div>
   </header>
@@ -244,7 +247,7 @@
     </details>
 
 
-    <details class="panel rules-panel support-details" aria-labelledby="rules-title">
+    <details class="panel rules-panel support-details" id="helpPanel" aria-labelledby="rules-title">
       <summary class="manual-summary support-summary">
         <span>
           <span class="eyebrow">보조 정보</span>
@@ -288,7 +291,7 @@
   </div>
 
   <footer class="footer">
-    <p>학교카드 사용처 지도 · 카드지도 v1.6.2 · 학돌랩</p>
+    <p>학교카드 사용처 지도 · 카드지도 v1.6.3 · 학돌랩</p>
   </footer>
 
   <script src="./app.js"></script>
