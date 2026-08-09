@@ -1090,27 +1090,35 @@ function groupByPlace(rows) {
 }
 
 function renderTabs() {
+  const tabCounts = {
+    mapped: getDisplayedRows().length,
+    target: state.visibleRows.length,
+    excluded: state.excludedRows.length,
+    all: state.rawRows.length,
+  };
   const tabs = state.mode === "mapped"
     ? [
-        ["mapped", "지도 표시 대상"],
+        ["mapped", "지도 항목"],
         ["excluded", "지도 제외"],
         ["all", "전체"],
       ]
     : [
-        ["target", "지도 대상"],
+        ["target", "지도 항목"],
         ["excluded", "지도 제외"],
         ["all", "전체"],
       ];
 
   if (!tabs.some(([key]) => key === state.currentTab)) state.currentTab = tabs[0][0];
   elements.resultTabs.innerHTML = tabs.map(([key, label]) =>
-    `<button class="tab ${key === state.currentTab ? "active" : ""}" data-tab="${key}" type="button">${label}</button>`
+    `<button class="tab ${key === state.currentTab ? "active" : ""}" data-tab="${key}" type="button" role="tab" aria-selected="${key === state.currentTab}">
+      <span>${label}</span><strong>${tabCounts[key]}</strong>
+    </button>`
   ).join("");
 
   if (state.mode === "mapped") {
-    elements.tableHint.textContent = "지도에 표시된 사용처입니다. 애매한 항목만 위치를 확인해 주세요.";
+    elements.tableHint.textContent = "지도에 표시되는 사용처입니다. 위치가 애매한 항목만 확인해 주세요.";
   } else if (state.mode === "parsed") {
-    elements.tableHint.textContent = "자료 확인 상태입니다. 위의 [사용처 지도 만들기] 버튼으로 지도까지 한 번에 만들 수 있습니다.";
+    elements.tableHint.textContent = "지도에 표시할 항목과 제외 항목을 나눠 확인할 수 있습니다.";
   } else {
     elements.tableHint.textContent = "학교명과 기준월을 입력하고 [사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 이어집니다.";
   }

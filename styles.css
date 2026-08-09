@@ -2598,14 +2598,161 @@ body {
   }
 }
 
-/* v1.4.5 restore the original result-card proportions after the map/list swap */
-.workspace {
-  /* Keep the old, well-balanced widths and only reverse their order. */
-  grid-template-columns: minmax(460px, 1.12fr) minmax(360px, 0.88fr);
+/* v1.5.0 map-first redesign + one authoritative responsive layer */
+.app-header {
+  padding: 24px 24px 48px;
 }
 
-/* Align the bottoms of the map and result cards. */
+.app-header h1 {
+  font-size: clamp(30px, 3.6vw, 40px);
+}
+
+.lead {
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+.shell {
+  margin-top: -26px;
+}
+
+.launch-panel {
+  padding: 24px;
+}
+
+.launch-title-row {
+  margin-bottom: 0;
+}
+
+.launch-title-row .help-text {
+  margin: 7px 0 0;
+}
+
+.scope-notice {
+  gap: 6px 9px;
+  margin-top: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #667085;
+}
+
+.scope-notice strong {
+  padding: 4px 8px;
+  border: 1px solid #cbddec;
+  border-radius: 999px;
+  background: #eef6fc;
+}
+
+.launch-form-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px) minmax(190px, 220px);
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+}
+
+.launch-form-grid > *,
+.school-field,
+.school-field > label,
+.month-field,
+.main-cta-slot {
+  min-width: 0;
+  min-inline-size: 0;
+  max-width: 100%;
+  max-inline-size: 100%;
+}
+
+.school-field input,
+.month-field input,
+#baseMonth,
+.main-cta-button {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.month-field {
+  width: 100%;
+  overflow: hidden;
+  overflow: clip;
+}
+
+#baseMonth {
+  display: block;
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding-inline: 14px 10px;
+}
+
+#baseMonth::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+
+#baseMonth::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.launch-status-row {
+  margin-top: 10px;
+}
+
+.workflow-status-row {
+  margin-top: 9px;
+  padding: 10px 12px;
+}
+
+.settings-details,
+.auto-debug {
+  margin-top: 10px;
+}
+
+.summary-grid {
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.summary-card {
+  padding: 15px 16px;
+  border-radius: 16px;
+}
+
+.summary-card span {
+  margin-bottom: 6px;
+}
+
+.summary-card strong {
+  font-size: 21px;
+}
+
+.workspace {
+  grid-template-columns: minmax(480px, 1.15fr) minmax(360px, 0.85fr);
+  gap: 16px;
+}
+
+.map-panel,
+.table-panel,
+.map-shell,
+#map,
+.place-list-wrap,
+.place-list,
+.place-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.map-panel,
+.table-panel {
+  min-height: 0;
+}
+
 #map {
+  width: 100%;
   height: 610px;
   min-height: 520px;
 }
@@ -2615,13 +2762,9 @@ body {
 }
 
 .table-panel .section-title-row.sticky-title {
-  flex-wrap: nowrap;
-  gap: 10px;
-}
-
-.table-panel .section-title-row.sticky-title > div:first-child {
-  flex: 0 0 auto;
-  min-width: max-content;
+  position: static;
+  margin-bottom: 10px;
+  padding-bottom: 0;
 }
 
 .table-panel #list-title {
@@ -2629,13 +2772,53 @@ body {
 }
 
 .table-panel .tabs {
-  flex: 0 1 auto;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  width: 100%;
+  max-width: none;
+  padding: 5px;
+  border: 1px solid #dce5ef;
+  border-radius: 14px;
+  background: #eef3f8;
+  overflow: visible;
 }
 
 .table-panel .tab {
-  padding: 8px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 7px;
+  border-radius: 10px;
+  color: #5b6b7f;
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.table-panel .tab strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dfe7f0;
+  color: #536276;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.table-panel .tab.active strong {
+  background: #dceafa;
+  color: #245b8e;
+}
+
+.table-hint {
+  margin: 10px 2px 13px;
 }
 
 .place-card {
@@ -2643,8 +2826,27 @@ body {
   gap: 12px;
 }
 
+.place-card-main,
+.place-card-head,
+.place-title-wrap,
+.place-title,
+.place-purpose,
+.place-map-info {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .place-title-wrap {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+}
+
+.place-title,
+.place-purpose,
+.place-map-info,
+.field-status,
+.status-text,
+.lookup-state-copy p {
+  overflow-wrap: anywhere;
 }
 
 .place-title-wrap .badge {
@@ -2658,14 +2860,15 @@ body {
   align-self: center;
 }
 
-/* Do not keep a squeezed two-column result layout on tablets. */
+/* Keep the map first and avoid a squeezed two-column result layout on tablets. */
 @media (max-width: 1040px) {
   .workspace {
     display: flex;
     flex-direction: column;
   }
 
-  .map-panel {
+  .map-panel,
+  .table-panel {
     position: static;
     order: 0;
     width: 100%;
@@ -2673,7 +2876,6 @@ body {
 
   .table-panel {
     order: 1;
-    width: 100%;
   }
 
   #map {
@@ -2686,21 +2888,210 @@ body {
   }
 }
 
-@media (max-width: 640px) {
-  .table-panel .section-title-row.sticky-title {
-    align-items: stretch;
-    flex-direction: column;
+@media (max-width: 920px) {
+  .app-header {
+    padding: 21px 16px 43px;
   }
 
-  .table-panel .tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .shell {
     width: 100%;
+    margin-top: -22px;
+    padding-inline: 12px;
+  }
+
+  .launch-panel {
+    padding: 18px;
+  }
+
+  .launch-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  .main-cta-slot,
+  .main-cta-button {
+    width: 100%;
+  }
+
+  .summary-grid.has-data {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .app-header h1 {
+    font-size: 28px;
+  }
+
+  .lead {
+    max-width: 34ch;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: keep-all;
+  }
+
+  .panel,
+  .launch-panel,
+  .lookup-state-panel,
+  .cta-panel,
+  .manual-panel,
+  .rules-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .launch-form-grid {
+    margin-top: 15px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .school-field > label,
+  .month-field {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    grid-template-rows: auto 54px;
+  }
+
+  .school-field input,
+  .month-field input,
+  #baseMonth,
+  .main-cta-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-inline-size: 0 !important;
+    max-inline-size: 100% !important;
+    height: 54px;
+    min-height: 54px;
+  }
+
+  .scope-notice {
+    width: auto;
+    font-size: 12px;
+  }
+
+  .launch-status-row,
+  .workflow-status-row {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .summary-card {
+    min-width: 0;
+    padding: 13px;
+  }
+
+  .summary-card strong {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+  }
+
+  #map {
+    height: 350px;
+    min-height: 300px;
+  }
+
+  .map-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
   }
 
   .table-panel .tab {
-    width: 100%;
-    padding-inline: 6px;
+    gap: 4px;
+    padding-inline: 4px;
     font-size: 12px;
+  }
+
+  .table-panel .tab strong {
+    min-width: 20px;
+    height: 20px;
+    padding-inline: 5px;
+    font-size: 10px;
+  }
+
+  .place-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .place-card-actions,
+  .place-card-actions .mini-action {
+    width: 100%;
+  }
+
+  .place-card-actions .mini-action {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 430px) {
+  .shell {
+    padding-inline: 9px;
+  }
+
+  .panel,
+  .launch-panel {
+    padding: 15px;
+    border-radius: 16px;
+  }
+
+  .launch-title-row h2 {
+    font-size: 20px;
+  }
+
+  .scope-notice span {
+    flex-basis: 100%;
+    line-height: 1.45;
+  }
+
+  .summary-grid.has-data {
+    gap: 8px;
+  }
+
+  .summary-card {
+    padding: 11px;
+  }
+
+  .summary-card span {
+    font-size: 11px;
+  }
+
+  .summary-card strong {
+    font-size: 15px;
+  }
+
+  #map {
+    height: 330px;
+    min-height: 285px;
+  }
+
+  .table-panel .tabs {
+    gap: 3px;
+    padding: 4px;
+  }
+
+  .table-panel .tab {
+    min-height: 38px;
+    font-size: 11px;
+  }
+
+  .map-legend {
+    font-size: 11px;
   }
 }
