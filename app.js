@@ -2525,7 +2525,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.7.1 Figma refinement + subtle Kakao Map links + compact help drawer
+// v1.7.2 Figma refinement + subtle Kakao Map links + compact help drawer
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");

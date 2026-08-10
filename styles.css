@@ -4902,3 +4902,59 @@ label span,
     margin-bottom: 8px;
   }
 }
+
+/* v1.7.2 — fixed desktop map/list workspace + internal list scrolling */
+@media (min-width: 1041px) {
+  /* Result height is controlled by the workspace, never by the number of rows. */
+  .workspace {
+    align-items: start;
+  }
+
+  .map-panel,
+  .table-panel {
+    height: clamp(580px, 72vh, 660px);
+    min-height: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+  }
+
+  .map-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-panel .section-title-row,
+  .map-panel .map-legend,
+  .table-panel .section-title-row {
+    flex: 0 0 auto;
+  }
+
+  /* Let the map fill only the remaining fixed panel height. */
+  .map-panel .map-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .map-panel #map {
+    height: 100%;
+    min-height: 0;
+  }
+
+  /* Keep tabs/help text fixed; only the actual result rows scroll. */
+  .table-panel .list-surface {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .list-surface #tableWrap,
+  .list-surface .table-wrap,
+  .list-surface .place-list-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
