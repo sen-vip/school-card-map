@@ -4958,3 +4958,345 @@ label span,
     scrollbar-gutter: stable;
   }
 }
+
+/* v1.7.4 — Figma/Linear finishing pass: reduce chrome, clarify hierarchy */
+:root {
+  --ui-line-soft: #edf1f5;
+  --ui-line: #e2e8f0;
+  --ui-muted: #7c8797;
+  --ui-subtle: #98a2b3;
+  --ui-ink-soft: #455266;
+  --ui-blue: #315b96;
+  --ui-blue-soft: #f3f7fc;
+}
+
+/* Large result surfaces should read as one calm workspace, not two heavy cards. */
+.map-panel,
+.table-panel {
+  border-color: var(--ui-line-soft) !important;
+  border-radius: 11px;
+  box-shadow: none !important;
+}
+
+.map-panel .section-title-row,
+.table-panel .section-title-row {
+  margin-bottom: 9px;
+}
+.map-panel h2,
+.table-panel h2 {
+  color: #202b3c;
+  font-size: 15px;
+  font-weight: 700;
+}
+.map-panel .ghost-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-color: #dfe5ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #536174;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+.map-panel .ghost-button:hover {
+  border-color: #cfd8e3;
+  background: #f8fafc;
+  color: var(--ui-blue);
+}
+
+#map { border-radius: 9px; }
+
+/* Legend: small footer strip, not a secondary card. */
+.map-legend {
+  gap: 13px;
+  margin-top: 8px;
+  padding: 7px 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #8b95a4;
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.map-legend span { display: inline-flex; align-items: center; }
+.map-legend .dot {
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+}
+
+/* Right list surface: almost invisible frame. */
+.list-surface {
+  border-color: var(--ui-line-soft);
+  border-radius: 9px;
+}
+.list-surface .table-hint {
+  padding: 7px 10px 9px;
+  border-bottom-color: #f0f2f5;
+  color: #8a94a3;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+/* Tabs: text + short underline, with quiet count chips. */
+.table-panel .tabs {
+  border-bottom-color: #eef1f4;
+}
+.table-panel .tab {
+  min-height: 34px;
+  padding: 7px 5px 8px;
+  color: #8993a2;
+  font-size: 11px;
+  font-weight: 550;
+}
+.table-panel .tab::after {
+  left: 30%;
+  right: 30%;
+  height: 2px;
+}
+.table-panel .tab.active {
+  color: var(--ui-blue);
+  font-weight: 650;
+}
+.table-panel .tab strong,
+.table-panel .tab.active strong {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 0;
+  background: #f3f5f7;
+  color: #98a1ae;
+  font-size: 9px;
+  font-weight: 600;
+}
+.table-panel .tab.active strong {
+  background: #f0f5fb;
+  color: #5d79a1;
+}
+
+/* Divider rows: remove card-like visual weight and separate content hierarchy clearly. */
+.place-card {
+  display: block;
+  padding: 13px 12px 12px;
+  border-bottom-color: #f0f2f5 !important;
+}
+.place-card:hover,
+.place-card.map-card:hover {
+  background: #fbfcfd !important;
+  border-bottom-color: #ebeff3 !important;
+}
+.place-card-head {
+  align-items: center;
+  gap: 8px;
+}
+.place-title-wrap {
+  gap: 6px;
+  min-width: 0;
+}
+.place-title {
+  color: #263244;
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+}
+.place-amount {
+  color: #253a5a;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+/* Normal state recedes; attention states remain discoverable without shouting. */
+.place-card .badge {
+  min-height: 19px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  background: #f3f6f9;
+  color: #718096;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+.place-card .badge.warn {
+  border-color: #f0dec0;
+  background: #fffaf2;
+  color: #8a5a14;
+}
+.place-card .badge.manual {
+  border-color: #d9eee8;
+  background: #f4fbf9;
+  color: #39796f;
+}
+.place-card .badge.danger {
+  border-color: #edd8d2;
+  background: #fdf7f5;
+  color: #9a5c4b;
+}
+.place-card .badge.gray {
+  background: #f4f5f7;
+  color: #7e8794;
+}
+
+/* Date and purpose are deliberately secondary to place + amount. */
+.place-meta {
+  display: flex;
+  gap: 5px;
+  margin: 6px 0 7px;
+  color: #7f8998;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.place-date {
+  flex: 0 0 auto;
+  color: #8e98a6;
+  white-space: nowrap;
+}
+.place-purpose {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-purpose::before {
+  content: "· ";
+  color: #b3bac4;
+}
+
+/* Location block gets its own quiet hierarchy instead of one busy wrapping line. */
+.place-map-info {
+  display: grid;
+  gap: 2px;
+  color: #7d8795;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.place-map-primary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.place-map-primary span {
+  flex: 0 0 auto;
+  color: #8996a7;
+  font-size: 10px;
+  font-weight: 600;
+}
+.place-map-primary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #4d5a6c;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-map-info > em {
+  display: block;
+  overflow: hidden;
+  color: #8b95a3;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Actions live together on one quiet row. Kakao stays text-only with NO arrow and NO brand yellow. */
+.place-card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.place-card-actions .mini-action,
+.place-card-actions .mini-action.strong,
+.place-card-actions .mini-action.ghost,
+.place-card-actions .kakao-map-link {
+  min-height: 27px;
+  padding: 4px 8px;
+  border: 1px solid #dfe5ec;
+  border-radius: 7px;
+  background: #fff;
+  color: #5b6879;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: none;
+}
+.place-card-actions .mini-action:hover,
+.place-card-actions .mini-action.strong:hover,
+.place-card-actions .mini-action.ghost:hover,
+.place-card-actions .kakao-map-link:hover {
+  border-color: #cfd8e3;
+  background: #f8fafc;
+  color: var(--ui-blue);
+}
+.place-card-actions .mini-action.strong.warn-action {
+  border-color: #ead5b2;
+  background: #fffdf9;
+  color: #865817;
+}
+.place-card-actions .mini-action.strong.warn-action:hover {
+  border-color: #dfc38e;
+  background: #fff9ef;
+  color: #7b4f12;
+}
+
+/* The map info-window link follows the same restrained system. */
+.info-window .kakao-map-link.compact {
+  min-height: 26px;
+  padding: 4px 8px;
+  border-color: #dfe5ec;
+  border-radius: 7px;
+  background: #fff;
+  color: #5b6879;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  /* Mobile remains touch-friendly and intentionally does not inherit desktop density. */
+  .place-card {
+    padding: 12px !important;
+    border-color: #e9edf2 !important;
+    border-radius: 10px;
+  }
+  .place-title { font-size: 14px; }
+  .place-amount { font-size: 14px; }
+  .place-meta {
+    flex-wrap: wrap;
+    gap: 2px 5px;
+    font-size: 11.5px;
+  }
+  .place-purpose {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .place-map-primary { align-items: flex-start; }
+  .place-map-primary strong,
+  .place-map-info > em {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .place-card-actions {
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .place-card-actions .mini-action,
+  .place-card-actions .mini-action.strong,
+  .place-card-actions .mini-action.ghost,
+  .place-card-actions .kakao-map-link {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 11.5px;
+  }
+  .map-legend {
+    gap: 10px 12px;
+    font-size: 10px;
+  }
+}

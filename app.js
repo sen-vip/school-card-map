@@ -1277,6 +1277,8 @@ function renderPlaceCard(row, tab) {
   const kakaoLink = renderKakaoMapLink(group, row);
   const titleAttr = canJump ? "지도에서 위치 보기" : "";
 
+  const actions = [action, kakaoLink].filter(Boolean).join("");
+
   return `<article class="place-card ${toneClass} ${canJump ? "map-card" : ""}" role="listitem" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}" title="${titleAttr}"` : ""}>
     <div class="place-card-main">
       <div class="place-card-head">
@@ -1286,15 +1288,19 @@ function renderPlaceCard(row, tab) {
         </div>
         <strong class="place-amount">${formatWon(row.amount)}</strong>
       </div>
-      <p class="place-meta">${escapeHtml(row.date || "-")} · ${escapeHtml(truncateText(purpose, 42))}</p>
+      <p class="place-meta">
+        <span class="place-date">${escapeHtml(row.date || "-")}</span>
+        <span class="place-purpose">${escapeHtml(truncateText(purpose, 42))}</span>
+      </p>
       <div class="place-map-info">
-        <span>${escapeHtml(info.label)}</span>
-        <strong>${escapeHtml(info.primary)}</strong>
+        <div class="place-map-primary">
+          <span>${escapeHtml(info.label)}</span>
+          <strong>${escapeHtml(info.primary)}</strong>
+        </div>
         ${info.secondary ? `<em>${escapeHtml(info.secondary)}</em>` : ""}
-        ${kakaoLink}
       </div>
     </div>
-    ${action ? `<div class="place-card-actions">${action}</div>` : ""}
+    ${actions ? `<div class="place-card-actions">${actions}</div>` : ""}
   </article>`;
 }
 
@@ -2522,7 +2528,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.7.3 marker click stays on map + fixed workspace + Figma refinement
+// v1.7.4 Figma UI finishing pass: calmer hierarchy, lighter actions, compact list
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");
