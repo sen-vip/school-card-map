@@ -52,7 +52,6 @@ const state = {
   schoolRegionSchool: "",
   resolvedSchoolName: "",
   schoolLookupStatus: "unknown",
-  schoolLookupInputKey: "",
   workflowRunning: false,
   schoolCheckTimer: null,
   manualEditPlaceKey: "",
@@ -136,13 +135,13 @@ function init() {
   $("#placeRules").textContent = PLACE_EXCLUDE_KEYWORDS.join(", ");
 
   elements.makeMapBtn.addEventListener("click", () => run({ withMap: true }));
-  elements.ctaMapBtn?.addEventListener("click", () => runFullWorkflow());
+  elements.ctaMapBtn?.addEventListener("click", runFullWorkflow);
   elements.parseOnlyBtn.addEventListener("click", () => run({ withMap: false }));
-  elements.fetchSenBtn?.addEventListener("click", handlePrimarySchoolAction);
+  elements.fetchSenBtn?.addEventListener("click", runFullWorkflow);
   elements.openSenBtn?.addEventListener("click", () => window.open(elements.senSourceUrl?.value || SEN_DEFAULT_URL, "_blank", "noopener"));
   elements.chooseMonthBtn?.addEventListener("click", focusMonthPicker);
   elements.editSchoolBtn?.addEventListener("click", focusSchoolInput);
-  elements.retryFetchBtn?.addEventListener("click", () => runFullWorkflow());
+  elements.retryFetchBtn?.addEventListener("click", runFullWorkflow);
   elements.clearBtn.addEventListener("click", clearAll);
   elements.fitMapBtn.addEventListener("click", fitMapToMarkers);
   elements.tableWrap.addEventListener("click", handleTableClick);
@@ -162,10 +161,11 @@ function init() {
   });
   elements.kakaoKey?.addEventListener("input", updateKeyStatus);
   elements.schoolName?.addEventListener("input", handleSchoolNameInput);
+  elements.schoolName?.addEventListener("blur", () => resolveSchoolRegionHint({ force: true }));
   elements.schoolName?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      lookupSchoolForMap();
+      resolveSchoolRegionHint({ force: true });
     }
   });
   elements.areaHint?.addEventListener("input", updateMapSettingStatus);
@@ -182,7 +182,6 @@ function init() {
 
   renderTabs();
   updateSchoolStatus();
-  updatePrimarySchoolAction();
 }
 
 function getInitialBaseMonth(savedValue) {
@@ -323,8 +322,8 @@ function updateSchoolStatus(message, tone = "neutral") {
   const schoolName = elements.schoolName?.value?.trim();
   const region = getEffectiveAreaHint();
   const defaultMessage = schoolName
-    ? "학교 확인 전 · Enter 또는 [학교 조회]를 눌러주세요."
-    : "학교 확인 전 · 학교명을 입력하고 Enter 또는 [학교 조회]를 눌러주세요.";
+    ? `${region} 기준으로 검색합니다.`
+    : "학교 확인 전 · 학교명을 입력하면 검색 지역을 자동으로 잡습니다.";
   const displayMessage = message || defaultMessage;
   const isBusy = tone === "loading" || isBusyStatusMessage(displayMessage);
   elements.schoolStatus.textContent = stripStaticDots(displayMessage);
@@ -338,7 +337,6 @@ function handleSchoolNameInput() {
   state.schoolRegionSchool = "";
   state.resolvedSchoolName = "";
   state.schoolLookupStatus = "unknown";
-  state.schoolLookupInputKey = "";
   hideLookupState();
   showResultRegion();
   if (elements.areaHint && !document.querySelector(".settings-details")?.open) {
@@ -346,8 +344,11 @@ function handleSchoolNameInput() {
   }
   updateMapSettingStatus();
   const schoolName = elements.schoolName?.value?.trim() || "";
-  updateSchoolStatus(schoolName ? "Enter 또는 [학교 조회]를 눌러 학교를 먼저 확인해 주세요." : undefined, "neutral");
-  updatePrimarySchoolAction();
+  updateSchoolStatus(schoolName ? "학교 주소 확인 대기 중 · Enter 또는 사용처 지도 만들기를 누르세요." : undefined, "neutral");
+  clearTimeout(state.schoolCheckTimer);
+  if (schoolName.length >= 2) {
+    state.schoolCheckTimer = setTimeout(() => resolveSchoolRegionHint({ force: true }), 700);
+  }
 }
 
 function updateNextAction(mode = state.mode) {
@@ -423,89 +424,6 @@ function getDisplaySchoolName() {
   return formatSchoolDisplayName(getOfficialSchoolName());
 }
 
-function isSchoolReadyForMap() {
-  const currentKey = normalizeSchoolNameKey(elements.schoolName?.value?.trim() || "");
-  if (!currentKey || currentKey !== state.schoolLookupInputKey) return false;
-  return state.schoolLookupStatus === "found" || state.schoolLookupStatus === "fallback";
-}
-
-function updatePrimarySchoolAction() {
-  const button = elements.fetchSenBtn;
-  if (!button || state.workflowRunning) return;
-  const ready = isSchoolReadyForMap();
-  button.dataset.action = ready ? "map" : "lookup";
-  button.innerHTML = ready
-    ? (state.mode === "mapped"
-      ? `<small>다시</small> 지도 다시 만들기`
-      : `<small>2단계</small> 이 학교 지도 만들기`)
-    : `<small>1단계</small> 학교 조회`;
-  button.classList.toggle("map-ready", ready);
-}
-
-async function handlePrimarySchoolAction() {
-  if (state.workflowRunning) return;
-  if (isSchoolReadyForMap()) {
-    await runFullWorkflow({ skipSchoolLookup: true });
-    return;
-  }
-  await lookupSchoolForMap();
-}
-
-async function lookupSchoolForMap() {
-  if (state.workflowRunning) return;
-  const schoolName = elements.schoolName?.value?.trim() || "";
-  if (!schoolName) {
-    updateSchoolStatus("학교명을 입력해 주세요.", "error");
-    setAutoStatus("학교명을 입력한 뒤 학교 조회를 눌러주세요.", "warning");
-    focusSchoolInput();
-    return;
-  }
-
-  saveSettings();
-  hideLookupState();
-  resetWorkflowSteps();
-  setWorkflowStep("school");
-  setMainButtonLoading(true, "lookup");
-  setAutoStatus("학교 정보를 확인하는 중입니다.");
-
-  try {
-    await resolveSchoolRegionHint({ force: true });
-    if (state.schoolLookupStatus === "not_found") {
-      setWorkflowStep("school", "warning");
-      setAutoStatus("서울 소재 학교를 확인하지 못했습니다.", "warning");
-      showLookupState("school");
-      return;
-    }
-
-    if (state.schoolLookupStatus !== "found") {
-      state.schoolLookupStatus = "fallback";
-      state.schoolLookupInputKey = normalizeSchoolNameKey(schoolName);
-    }
-    setWorkflowStep("school", "done");
-    if (state.schoolLookupStatus === "fallback") {
-      updateSchoolStatus(`${getOfficialSchoolName() || schoolName} · 학교 확인 완료 · ${getEffectiveAreaHint()} 기준`, "ready");
-    }
-    setAutoStatus("학교 확인 완료 · 기준월을 확인하고 [이 학교 지도 만들기]를 눌러주세요.");
-  } catch (error) {
-    console.error(error);
-    state.schoolLookupStatus = "fallback";
-    state.schoolLookupInputKey = normalizeSchoolNameKey(schoolName);
-    updateSchoolStatus(`${getEffectiveAreaHint()} 기준으로 조회를 이어갈 수 있습니다.`, "neutral");
-    setAutoStatus("학교 주소 확인 서비스가 원활하지 않습니다. 현재 검색 지역 기준으로 지도를 만들 수 있습니다.", "warning");
-  } finally {
-    setMainButtonLoading(false, "lookup");
-    updatePrimarySchoolAction();
-  }
-}
-
-function scrollToMapAfterRender() {
-  const target = elements.resultWorkspace || document.getElementById("map-title") || elements.map;
-  if (!target) return;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
-  });
-}
-
 function focusMonthPicker() {
   hideLookupState();
   elements.baseMonth?.focus();
@@ -528,8 +446,6 @@ function clearAll() {
   state.groupedPlaces = [];
   state.manualEditPlaceKey = "";
   state.manualSearchCandidates = [];
-  state.schoolLookupStatus = "unknown";
-  state.schoolLookupInputKey = "";
   state.mode = "empty";
   state.currentTab = "target";
   clearMarkers();
@@ -541,7 +457,6 @@ function clearAll() {
   hideLookupState();
   showResultRegion();
   setStatus("초기화했습니다.");
-  updatePrimarySchoolAction();
 }
 
 async function run({ withMap, skipResolveRegion = false }) {
@@ -646,7 +561,7 @@ function resetWorkflowSteps() {
   elements.workflowSteps.querySelectorAll("li").forEach((item) => item.classList.remove("active", "done", "error", "warning", "empty"));
 }
 
-function setMainButtonLoading(isLoading, phase = "map") {
+function setMainButtonLoading(isLoading) {
   state.workflowRunning = isLoading;
   [elements.fetchSenBtn, elements.ctaMapBtn].filter(Boolean).forEach((button) => {
     button.disabled = isLoading;
@@ -655,13 +570,9 @@ function setMainButtonLoading(isLoading, phase = "map") {
     else button.removeAttribute("aria-busy");
   });
   if (elements.fetchSenBtn) {
-    if (isLoading) {
-      elements.fetchSenBtn.innerHTML = phase === "lookup"
-        ? `<small>1단계</small> 학교 확인 중`
-        : `<small>2단계</small> 지도 만드는 중`;
-    } else {
-      updatePrimarySchoolAction();
-    }
+    elements.fetchSenBtn.innerHTML = isLoading
+      ? `<small>진행</small> 만드는 중`
+      : `<small>시작</small> 사용처 지도 만들기`;
   }
 }
 
@@ -751,7 +662,7 @@ function classifyWorkflowError(error, stage = "fetch") {
   return "connection";
 }
 
-async function runFullWorkflow({ skipSchoolLookup = false } = {}) {
+async function runFullWorkflow() {
   if (state.workflowRunning) return;
   saveSettings();
   const schoolName = elements.schoolName.value.trim();
@@ -773,21 +684,17 @@ async function runFullWorkflow({ skipSchoolLookup = false } = {}) {
   let stage = "school";
   try {
     hideLookupState();
-    setMainButtonLoading(true, "map");
+    setMainButtonLoading(true);
     setWorkflowStep("school");
-    let region = getEffectiveAreaHint();
-    if (!skipSchoolLookup || !isSchoolReadyForMap()) {
-      setAutoStatus("학교 지역을 확인하는 중입니다.");
-      region = await resolveSchoolRegionHint({ force: true });
+    setAutoStatus("학교 지역을 확인하는 중입니다...");
+    const region = await resolveSchoolRegionHint({ force: true });
 
-      if (state.schoolLookupStatus === "not_found") {
-        setWorkflowStep("school", "warning");
-        setAutoStatus("서울 소재 학교를 확인하지 못했습니다.", "warning");
-        showLookupState("school");
-        return;
-      }
+    if (state.schoolLookupStatus === "not_found") {
+      setWorkflowStep("school", "warning");
+      setAutoStatus("서울 소재 학교를 확인하지 못했습니다.", "warning");
+      showLookupState("school");
+      return;
     }
-    setWorkflowStep("school", "done");
 
     stage = "fetch";
     setAutoStatus(`검색 지역을 ${region} 기준으로 설정했습니다. 열린서울교육 자료를 가져오는 중입니다...`);
@@ -813,7 +720,6 @@ async function runFullWorkflow({ skipSchoolLookup = false } = {}) {
     await run({ withMap: true, skipResolveRegion: true });
     setWorkflowStep("done", "done");
     setAutoStatus(`${getDisplaySchoolName() || schoolName} ${formatDisplayMonth(baseMonth)} 사용처 지도를 만들었습니다.`);
-    scrollToMapAfterRender();
   } catch (error) {
     console.error(error);
     const kind = classifyWorkflowError(error, stage);
@@ -832,7 +738,7 @@ async function runFullWorkflow({ skipSchoolLookup = false } = {}) {
     }
     setStatus("조회 과정에서 문제가 발생했습니다. 화면의 안내에 따라 다시 시도해 주세요.", kind === "connection");
   } finally {
-    setMainButtonLoading(false, "map");
+    setMainButtonLoading(false);
   }
 }
 
@@ -1214,7 +1120,7 @@ function renderTabs() {
   } else if (state.mode === "parsed") {
     elements.tableHint.textContent = "지도에 표시할 항목과 제외 항목을 나눠 확인할 수 있습니다.";
   } else {
-    elements.tableHint.textContent = "학교명을 조회한 뒤 [이 학교 지도 만들기]를 누르면 자료 수집과 지도 생성이 이어집니다.";
+    elements.tableHint.textContent = "학교명과 기준월을 입력하고 [사용처 지도 만들기]를 누르면 자료 수집과 지도 생성이 이어집니다.";
   }
 }
 
@@ -1223,7 +1129,7 @@ function setMapNotice(show) {
   elements.mapNotice.classList.toggle("hidden", !show);
   if (show && !state.map) {
     elements.map.classList.add("map-placeholder");
-    elements.map.innerHTML = `<div><strong>아직 지도를 만들지 않았습니다.</strong><p>학교를 조회한 뒤 [이 학교 지도 만들기]를 누르면 사용처 위치를 검색합니다.</p></div>`;
+    elements.map.innerHTML = `<div><strong>아직 지도를 만들지 않았습니다.</strong><p>자료를 확인한 뒤 [사용처 지도 만들기]를 누르면 사용처 위치를 검색합니다.</p></div>`;
     elements.mapNotice.classList.add("hidden");
   }
 }
@@ -1326,7 +1232,7 @@ function renderTable() {
 
   if (!rows.length) {
     let message = "해당 내역이 없습니다.";
-    if (!state.rawRows.length) message = "아직 정리된 자료가 없습니다. 학교명을 입력하고 학교 조회부터 진행해 주세요.";
+    if (!state.rawRows.length) message = "아직 정리된 자료가 없습니다. 학교명과 기준월을 입력하고 사용처 지도 만들기를 눌러주세요.";
     else if (state.mode === "mapped" && tab === "mapped") message = "지도에 표시된 장소가 없습니다. 전체에서 검색 실패 내역을 확인해 주세요.";
     else if (state.mode === "mapped" && tab === "excluded") message = "지도 제외 내역이 없습니다.";
     elements.tableWrap.className = "place-list-wrap empty-state";
@@ -1873,7 +1779,6 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
     state.schoolRegionSource = "default";
     state.schoolRegionSchool = "";
     state.schoolLookupStatus = "unknown";
-    state.schoolLookupInputKey = "";
     updateMapSettingStatus();
     updateSchoolStatus();
     return DEFAULT_REGION_HINT;
@@ -1884,7 +1789,7 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
     return state.schoolRegionHint;
   }
   if (!force) {
-    updateSchoolStatus("학교 주소 확인 전 · Enter 또는 [학교 조회]를 누르면 주소에서 자치구를 확인합니다.", "neutral");
+    updateSchoolStatus("학교 주소 확인 전 · 사용처 지도 만들기를 누르면 주소에서 자치구를 확인합니다.", "neutral");
     return userHint || state.schoolRegionHint || DEFAULT_REGION_HINT;
   }
 
@@ -1898,7 +1803,6 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
 
   if (schoolInfo?.ok && schoolInfo?.regionHint) {
     state.schoolLookupStatus = "found";
-    state.schoolLookupInputKey = requestKey;
     state.schoolRegionHint = userHint || schoolInfo.regionHint;
     state.schoolRegionSource = userHint ? "manual" : "neis";
     state.schoolRegionSchool = schoolInfo.schoolName || schoolName;
@@ -1906,7 +1810,6 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
     updateMapSettingStatus();
     const addressText = schoolInfo.address ? ` · ${schoolInfo.address}` : "";
     updateSchoolStatus(`${schoolInfo.schoolName || schoolName} · ${state.schoolRegionHint} 주소 확인 완료${addressText}`, "ready");
-    updatePrimarySchoolAction();
     return state.schoolRegionHint;
   }
 
@@ -1927,14 +1830,12 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
     }
     if (kakaoHint) {
       state.schoolLookupStatus = "found";
-      state.schoolLookupInputKey = requestKey;
       state.schoolRegionHint = userHint || kakaoHint;
       state.schoolRegionSource = userHint ? "manual" : "kakao";
       state.schoolRegionSchool = schoolName;
       state.resolvedSchoolName = state.resolvedSchoolName || schoolName;
       updateMapSettingStatus();
       updateSchoolStatus(`${state.schoolRegionHint} 학교 위치로 보조 확인했습니다.`, "ready");
-      updatePrimarySchoolAction();
       return state.schoolRegionHint;
     }
   } catch (error) {
@@ -1944,14 +1845,12 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
   const fallbackHint = getSchoolRegionFallback(schoolName);
   if (fallbackHint) {
     state.schoolLookupStatus = "found";
-    state.schoolLookupInputKey = requestKey;
     state.schoolRegionHint = userHint || fallbackHint;
     state.schoolRegionSource = userHint ? "manual" : "fallback";
     state.schoolRegionSchool = schoolName;
     state.resolvedSchoolName = state.resolvedSchoolName || schoolName;
     updateMapSettingStatus();
     updateSchoolStatus(`${state.schoolRegionHint} 기준으로 검색합니다.`, "ready");
-    updatePrimarySchoolAction();
     return state.schoolRegionHint;
   }
 
@@ -1961,15 +1860,11 @@ async function resolveSchoolRegionHint({ force = false } = {}) {
   updateMapSettingStatus();
 
   if (state.schoolLookupStatus === "not_found") {
-    state.schoolLookupInputKey = "";
     updateSchoolStatus("서울 소재 학교를 확인하지 못했습니다. 학교명을 다시 확인해 주세요.", "error");
-    updatePrimarySchoolAction();
   } else {
-    state.schoolLookupStatus = "fallback";
-    state.schoolLookupInputKey = requestKey;
+    state.schoolLookupStatus = "unknown";
     updateSchoolStatus(`학교 주소 확인 서비스가 원활하지 않아 ${state.schoolRegionHint} 기준으로 조회를 이어갑니다.`, "neutral");
   }
-  updatePrimarySchoolAction();
   return state.schoolRegionHint;
 }
 
@@ -2630,7 +2525,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.7.0 Figma refinement + subtle Kakao Map links + compact help drawer
+// v1.7.1 Figma refinement + subtle Kakao Map links + compact help drawer
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");

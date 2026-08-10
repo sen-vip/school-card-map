@@ -4838,83 +4838,67 @@ label span,
   .place-card-actions { justify-content: flex-end; }
 }
 
-/* v1.7.1 — simplified app icon + explicit school lookup → map flow */
-.brand-icon {
-  overflow: hidden;
-  border: 0 !important;
-  background: transparent !important;
-}
-.brand-icon img {
-  display: block;
-  width: 100%;
+
+/* v1.7.1 — favicon refresh + map/list surface alignment */
+.map-panel,
+.table-panel {
   height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
 }
 
-/* Keep the two-step action visible without adding animation or visual noise. */
-.main-cta-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-.main-cta-button small {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  min-height: 20px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.16);
-  color: rgba(255,255,255,.92);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-}
-.main-cta-button[data-action="lookup"] {
-  background: #315b96;
-}
-.main-cta-button.map-ready {
-  background: #2563eb;
-}
-.main-cta-button.map-ready:hover,
-.main-cta-button[data-action="lookup"]:hover {
-  background: #1f56c5;
+.table-panel {
+  display: flex;
+  flex-direction: column;
 }
 
-.launch-status-row .field-status[data-tone="ready"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #177a57;
-  font-weight: 550;
-}
-.launch-status-row .field-status[data-tone="ready"]::before {
-  content: "✓";
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #ecfdf5;
-  color: #14805a;
-  font-size: 10px;
-  font-weight: 700;
+/* The list's visible surface begins on the same horizontal line as the map. */
+.list-surface {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e6eaf0;
+  border-radius: 10px;
+  background: #fff;
 }
 
-#resultWorkspace {
-  scroll-margin-top: 86px;
+.list-surface .tabs {
+  flex: 0 0 auto;
+  padding-inline: 8px;
 }
 
-@media (max-width: 640px) {
-  .main-cta-button {
-    gap: 6px;
+.list-surface .table-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.list-surface #tableWrap,
+.list-surface .table-wrap,
+.list-surface .place-list-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+}
+
+@media (min-width: 1041px) {
+  .workspace { align-items: stretch; }
+}
+
+@media (max-width: 720px) {
+  .list-surface {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
   }
-  .main-cta-button small {
-    min-height: 18px;
-    padding-inline: 6px;
-    font-size: 9.5px;
+  .list-surface .tabs { padding-inline: 0; }
+  .list-surface .table-hint {
+    padding-inline: 1px;
+    border-bottom: 0;
+    margin-bottom: 8px;
   }
 }
