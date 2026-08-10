@@ -4903,7 +4903,7 @@ label span,
   }
 }
 
-/* v1.7.2 — fixed desktop map/list workspace + internal list scrolling */
+/* v1.7.3 — fixed desktop workspace + internal list scrolling; marker clicks do not move the list */
 @media (min-width: 1041px) {
   /* Result height is controlled by the workspace, never by the number of rows. */
   .workspace {

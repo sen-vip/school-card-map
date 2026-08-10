@@ -2492,12 +2492,9 @@ function createMarker(group) {
     state.infowindows.forEach((item) => item.close());
     infowindow.open(state.map, marker);
 
-    // Keep the right-hand list synchronized with the map selection.
-    const listCard = elements.tableWrap?.querySelector(`[data-place-key="${CSS.escape(group.key)}"]`);
-    if (listCard) {
-      // Synchronize position only; do not add a persistent card highlight.
-      listCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
+    // Marker taps should only open the map info window.
+    // Do not move or scroll the result list, especially on mobile where
+    // automatic page movement makes map/list comparison tiring.
   });
 
   group.marker = marker;
@@ -2525,7 +2522,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.7.2 Figma refinement + subtle Kakao Map links + compact help drawer
+// v1.7.3 marker click stays on map + fixed workspace + Figma refinement
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");
