@@ -1275,11 +1275,19 @@ function renderPlaceCard(row, tab) {
   const info = getCardMapInfo(group, row, tab);
   const action = renderCardAction(group, row, tab);
   const kakaoLink = renderKakaoMapLink(group, row);
-  const titleAttr = canJump ? "지도에서 위치 보기" : "";
+  const mapJump = canJump
+    ? `<button type="button" class="place-map-primary map-jump" data-place-key="${escapeHtml(row.placeKey)}" aria-label="${escapeHtml(row.place || "사용처")} 지도 위치 보기">
+        <span>${escapeHtml(info.label)}</span>
+        <strong>${escapeHtml(info.primary)}</strong>
+      </button>`
+    : `<div class="place-map-primary">
+        <span>${escapeHtml(info.label)}</span>
+        <strong>${escapeHtml(info.primary)}</strong>
+      </div>`;
 
   const actions = [action, kakaoLink].filter(Boolean).join("");
 
-  return `<article class="place-card ${toneClass} ${canJump ? "map-card" : ""}" role="listitem" ${canJump ? `data-place-key="${escapeHtml(row.placeKey)}" title="${titleAttr}"` : ""}>
+  return `<article class="place-card ${toneClass}" role="listitem">
     <div class="place-card-main">
       <div class="place-card-head">
         <div class="place-title-wrap">
@@ -1293,10 +1301,7 @@ function renderPlaceCard(row, tab) {
         <span class="place-purpose">${escapeHtml(truncateText(purpose, 42))}</span>
       </p>
       <div class="place-map-info">
-        <div class="place-map-primary">
-          <span>${escapeHtml(info.label)}</span>
-          <strong>${escapeHtml(info.primary)}</strong>
-        </div>
+        ${mapJump}
         ${info.secondary ? `<em>${escapeHtml(info.secondary)}</em>` : ""}
       </div>
     </div>
@@ -1471,7 +1476,14 @@ function focusPlaceOnMap(placeKey) {
   if (state.map.getLevel() > 4) state.map.setLevel(4);
   group.infowindow?.open(state.map, group.marker);
 
-  // Keep list cards visually neutral. Clicking a row only moves the map.
+  // Only the explicit “지도 위치” control moves from the list to the map.
+  // On stacked/mobile layouts, bring the map into view; marker taps never reverse-scroll to the list.
+  if (window.matchMedia("(max-width: 1040px)").matches) {
+    const mapPanel = elements.map?.closest(".map-panel");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    mapPanel?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }
+
   setStatus(`${group.place} 위치로 이동했습니다.`);
 }
 
@@ -2528,7 +2540,7 @@ function fitMapToMarkers() {
 }
 
 
-// v1.7.4 Figma UI finishing pass: calmer hierarchy, lighter actions, compact list
+// v1.7.5 mobile UX pass: left-aligned list, explicit map jump, stable month field
 const topbarHelpBtn = document.getElementById("topbarHelpBtn");
 const helpModal = document.getElementById("helpModal");
 const helpCloseBtn = document.getElementById("helpCloseBtn");

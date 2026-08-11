@@ -5300,3 +5300,203 @@ label span,
     font-size: 10px;
   }
 }
+
+
+/* v1.7.5 — mobile readability + explicit map jump + iOS-safe month control */
+
+/* Let a wrapper own month-field geometry. The native month input stays unpadded so iOS Safari
+   cannot grow beyond its container or clip the lower part of the rendered value. */
+.month-field {
+  min-width: 0;
+}
+.month-input-shell {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  min-height: 46px;
+  align-items: center;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.month-input-shell:hover {
+  border-color: #cbd5e1;
+}
+.month-input-shell:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .10);
+}
+.month-input-shell #baseMonth {
+  display: block;
+  flex: 1 1 auto;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-inline-size: 0 !important;
+  max-inline-size: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  color: #344155;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  box-shadow: none !important;
+  box-sizing: border-box;
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+.month-input-shell #baseMonth:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+.month-input-shell #baseMonth::-webkit-date-and-time-value {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  line-height: 1.25;
+}
+.month-input-shell #baseMonth::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* The whole result card is informational. Only “지도 위치” is an intentional navigation target. */
+.place-card {
+  cursor: default;
+}
+.place-map-primary.map-jump {
+  appearance: none;
+  -webkit-appearance: none;
+  max-width: 100%;
+  margin: -2px 0 0;
+  padding: 2px 4px 2px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.place-map-primary.map-jump:hover {
+  background: #f5f8fc;
+}
+.place-map-primary.map-jump:hover strong {
+  color: var(--ui-blue);
+}
+.place-map-primary.map-jump:focus-visible {
+  outline: 2px solid rgba(49, 91, 150, .28);
+  outline-offset: 2px;
+}
+
+@media (max-width: 920px) {
+  .month-input-shell {
+    height: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 1040px) {
+  .map-panel {
+    scroll-margin-top: 84px;
+  }
+}
+
+@media (max-width: 720px) {
+  /* Mobile list is scan-first: one left edge for name, date, purpose, location and address. */
+  .place-card,
+  .place-card-main,
+  .place-card-head,
+  .place-title-wrap,
+  .place-meta,
+  .place-map-info {
+    text-align: left !important;
+  }
+  .place-card-head {
+    width: 100%;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+  .place-title-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .place-title {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal !important;
+    line-height: 1.35;
+  }
+  .place-amount {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding-top: 1px;
+    font-size: 14.5px !important;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .place-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+  }
+  .place-map-primary {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .place-map-primary.map-jump {
+    width: 100%;
+    min-height: 36px;
+    margin: -3px 0 -2px -7px;
+    padding: 6px 7px;
+    align-items: center;
+  }
+  .place-map-primary.map-jump:active {
+    background: #eef4fb;
+  }
+  .place-card-actions {
+    width: 100%;
+    justify-content: flex-end !important;
+  }
+
+  /* Full-width form controls remain inside the viewport on iPhone/Safari. */
+  .month-field,
+  .month-input-shell,
+  .month-input-shell #baseMonth {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+  .month-input-shell {
+    padding: 0 10px;
+    overflow: hidden;
+  }
+  .month-input-shell #baseMonth {
+    padding: 0 !important;
+    font-size: 16px; /* prevents Safari focus zoom and keeps the native value vertically stable */
+    line-height: 1.2;
+  }
+  .month-input-shell #baseMonth::-webkit-date-and-time-value {
+    line-height: 1.2;
+  }
+}
